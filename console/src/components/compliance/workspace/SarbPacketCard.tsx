@@ -47,11 +47,8 @@ interface ReadinessItem {
   completed: boolean;
 }
 
-function getReadinessChecklist(
-  tierChecklist: CaseWorkspaceResponse["tierChecklist"],
-  rootCause: CaseWorkspaceResponse["rootCause"],
-  documents: CaseWorkspaceResponse["documents"]
-): ReadinessItem[] {
+function getReadinessChecklist(data: CaseWorkspaceResponse): ReadinessItem[] {
+  const { tierChecklist, rootCause, documents, sartMeeting, sartFollowup } = data;
   const t1Notif = tierChecklist.tier1.find((i) => i.key === "notification_sent");
   const t2Conf = tierChecklist.tier2.find((i) => i.key === "conference_held");
   const hasLetter = documents.some((d) => d.docType === "tier1_notification");
@@ -61,9 +58,11 @@ function getReadinessChecklist(
   return [
     { key: "t1_letter", label: "Tier 1 notification letter sent", completed: !!t1Notif?.completed },
     { key: "t1_doc", label: "Tier 1 letter generated", completed: hasLetter },
+    { key: "root_cause", label: "Root cause analysis complete", completed: rootCauseComplete },
     { key: "t2_conference", label: "Tier 2 conference held", completed: !!t2Conf?.completed },
     { key: "t2_summary", label: "Conference summary generated", completed: hasConferenceSummary },
-    { key: "root_cause", label: "Root cause analysis complete", completed: rootCauseComplete },
+    { key: "sart_meeting", label: "SART meeting held", completed: !!sartMeeting },
+    { key: "sart_followup", label: "30-day follow-up completed", completed: !!sartFollowup },
   ];
 }
 
@@ -96,19 +95,13 @@ export function SarbPacketCard({
   const mode = c.sarbPacketStatus;
   const statusCfg = STATUS_CONFIG[mode] ?? STATUS_CONFIG.not_started;
   const StatusIcon = statusCfg.icon;
-  const readiness = getReadinessChecklist(
-    workspaceData.tierChecklist,
-    workspaceData.rootCause,
-    workspaceData.documents
-  );
+  const readiness = getReadinessChecklist(workspaceData);
   const allReady = readiness.every((r) => r.completed);
   const completedCount = readiness.filter((r) => r.completed).length;
   const countyOffice = workspaceData.countyOffice;
 
-  // Tier gate check — both Tier 1 and 2 must be complete
-  const t1Done = workspaceData.tierChecklist.tier1.find((i) => i.key === "notification_sent")?.completed;
-  const t2Done = workspaceData.tierChecklist.tier2.find((i) => i.key === "conference_held")?.completed;
-  const tierGateOpen = !!t1Done && !!t2Done;
+  // Tier gate check — all prior tiers + SART workflow must be complete
+  const tierGateOpen = readiness.every((r) => r.completed);
 
   // Build the CaseDetailForModal shape from workspace data
   function buildModalProps() {
@@ -208,7 +201,7 @@ export function SarbPacketCard({
           <div className="mb-3 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg">
             <p className="text-xs text-amber-700 flex items-center gap-1.5">
               <Lock className="h-3.5 w-3.5 shrink-0" />
-              Tier 1 notification and Tier 2 conference must be completed before SARB referral (EC §48263)
+              All prior compliance steps must be completed before SARB referral (EC §48263)
             </p>
           </div>
         )}

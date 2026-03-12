@@ -22,6 +22,8 @@ export interface DistrictRecord {
   phone: string | null;
   superintendent_name: string | null;
   county_office_id: string | null;
+  toolkit_url: string | null;
+  toolkit_name: string | null;
 }
 
 export interface CountyOfficeRecord {

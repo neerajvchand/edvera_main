@@ -59,6 +59,7 @@ const TIER_2_ACTION_TYPES = [
   "schedule_conference",
   "parent_guardian_conference",
   "conference",
+  "sart_action",
 ];
 
 const TIER_3_ACTION_TYPES = [
@@ -109,13 +110,24 @@ async function checkTierGate(
     return null;
   }
 
-  // Tier 3
+  // Tier 3 — require T1, T2, and SART meeting + follow-up
   const missing: string[] = [];
   if (!notifSent?.completed) missing.push("Tier 1 notification letter");
   if (!confHeld?.completed) missing.push("Tier 2 parent/guardian conference");
 
+  // Check for SART meeting and follow-up in intervention_log
+  const { data: sartInterventions } = await supabase
+    .from("intervention_log")
+    .select("intervention_type")
+    .eq("compliance_case_id", caseId)
+    .in("intervention_type", ["sart_meeting", "sart_followup"]);
+
+  const types = (sartInterventions ?? []).map((r: { intervention_type: string }) => r.intervention_type);
+  if (!types.includes("sart_meeting")) missing.push("SART meeting");
+  if (!types.includes("sart_followup")) missing.push("SART 30-day follow-up");
+
   if (missing.length > 0) {
-    return `EC §48263 requires prior documentation: ${missing.join(" and ")} must be completed before SARB referral.`;
+    return `EC §48263 requires prior documentation: ${missing.join(", ")} must be completed before SARB referral.`;
   }
 
   return null;

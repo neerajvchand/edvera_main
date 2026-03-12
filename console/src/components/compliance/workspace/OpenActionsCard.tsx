@@ -47,6 +47,7 @@ const TIER_2_ACTION_TYPES = [
   "schedule_conference",
   "parent_guardian_conference",
   "conference",
+  "sart_action",
 ];
 
 const TIER_3_ACTION_TYPES = [
@@ -85,6 +86,8 @@ function formatDate(iso: string): string {
 function getBlockingReasons(
   actionType: string,
   tierChecklist: CaseWorkspaceResponse["tierChecklist"],
+  hasSartMeeting?: boolean,
+  hasSartFollowup?: boolean,
 ): string[] {
   const t1NotifSent = tierChecklist.tier1.find(
     (i) => i.key === "notification_sent"
@@ -103,7 +106,7 @@ function getBlockingReasons(
     return missing;
   }
 
-  // Tier 3 actions — require Tier 1 notification + Tier 2 conference
+  // Tier 3 actions — require T1, T2, SART meeting, and SART follow-up
   if (TIER_3_ACTION_TYPES.includes(actionType)) {
     const missing: string[] = [];
     if (!t1NotifSent?.completed) {
@@ -112,8 +115,14 @@ function getBlockingReasons(
     if (!t2ConfHeld?.completed) {
       missing.push("Tier 2 parent/guardian conference has not been held");
     }
+    if (!hasSartMeeting) {
+      missing.push("SART meeting has not been held");
+    }
+    if (!hasSartFollowup) {
+      missing.push("SART 30-day follow-up has not been completed");
+    }
     if (missing.length > 0) {
-      missing.push("EC §48263 requires prior tier documentation before SARB referral");
+      missing.push("EC §48263 requires all prior compliance steps before SARB referral");
     }
     return missing;
   }
@@ -129,6 +138,8 @@ interface Props {
   actions: ActionItem[];
   caseId: string;
   tierChecklist: CaseWorkspaceResponse["tierChecklist"];
+  hasSartMeeting?: boolean;
+  hasSartFollowup?: boolean;
   onActionCompleted: () => void;
 }
 
@@ -136,6 +147,8 @@ export function OpenActionsCard({
   actions,
   caseId,
   tierChecklist,
+  hasSartMeeting,
+  hasSartFollowup,
   onActionCompleted,
 }: Props) {
   const [completingAction, setCompletingAction] = useState<ActionItem | null>(
@@ -171,7 +184,7 @@ export function OpenActionsCard({
               const Icon = actionIcon(action.type);
               const priority = PRIORITY_STYLES[action.priority] ?? PRIORITY_STYLES.medium;
               const overdue = isOverdue(action.dueDate);
-              const blockingReasons = getBlockingReasons(action.type, tierChecklist);
+              const blockingReasons = getBlockingReasons(action.type, tierChecklist, hasSartMeeting, hasSartFollowup);
               const isBlocked = blockingReasons.length > 0;
 
               return (

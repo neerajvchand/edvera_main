@@ -2,6 +2,80 @@
 /* Case Workspace Types                                               */
 /* ------------------------------------------------------------------ */
 
+/* ---- SART Workflow Types ----------------------------------------- */
+
+export type RootCauseCategory =
+  | "transportation"
+  | "housing_instability"
+  | "health_medical"
+  | "family_circumstances"
+  | "school_climate"
+  | "academic_struggles"
+  | "work_obligations"
+  | "unknown";
+
+export interface RootCauseAssessment {
+  categories: Record<string, { checked: boolean; notes: string }>;
+  narrative: string;
+  savedAt: string | null;
+  savedBy: string | null;
+}
+
+export interface SartReferralData {
+  referral_trigger: "absences_threshold" | "teacher_concern" | "parent_request" | "reentry";
+  referral_date: string;
+  prior_informal_interventions: string;
+  referred_by: string;
+  savedAt: string | null;
+}
+
+export type SartMeetingOutcome = "action_plan_agreed" | "escalate_sarb" | "close_case";
+
+export interface SartMeetingRecord {
+  id: string;
+  meeting_date: string;
+  attendees: string[];
+  family_present: boolean;
+  agenda_checklist: Record<string, boolean>;
+  outcome: SartMeetingOutcome;
+  notes: string;
+  createdAt: string;
+}
+
+export interface SartFollowupRecord {
+  id: string;
+  followup_date: string;
+  attendance_improved: "yes" | "partial" | "no";
+  action_items_completed: Record<string, boolean>;
+  outcome: "closed" | "continue_monitoring" | "escalate_sarb";
+  notes: string;
+  createdAt: string;
+}
+
+export interface SartActionItem {
+  id: string;
+  description: string;
+  assigned_role: string;
+  due_date: string;
+  completed: boolean;
+  completed_at: string | null;
+  completed_by_name: string | null;
+}
+
+export type WorkflowStepStatus = "locked" | "active" | "complete";
+
+export interface WorkflowStep {
+  key: string;
+  tier: 1 | 2 | 3;
+  label: string;
+  status: WorkflowStepStatus;
+  completedAt: string | null;
+  completedBy: string | null;
+  blockingReasons: string[];
+}
+
+/* ---- Core Types -------------------------------------------------- */
+
 export type TierChecklistItem = {
   key: string;
   label: string;
@@ -122,4 +196,12 @@ export type CaseWorkspaceResponse = {
     approvedAt: string | null;
     notes: string | null;
   } | null;
+  /* SART workflow additions */
+  rootCauseAssessment: RootCauseAssessment | null;
+  sartData: SartReferralData | null;
+  sartMeeting: SartMeetingRecord | null;
+  sartFollowup: SartFollowupRecord | null;
+  sartActionPlan: SartActionItem[];
+  districtToolkit: { url: string; name: string } | null;
+  workflowSteps: WorkflowStep[];
 };

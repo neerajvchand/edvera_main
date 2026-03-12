@@ -1,13 +1,13 @@
 import { useParams } from "react-router-dom";
 import { useCaseWorkspace } from "@/hooks/useCaseWorkspace";
 import { CaseWorkspaceHeader } from "@/components/compliance/workspace/CaseWorkspaceHeader";
-import { TierChecklistCard } from "@/components/compliance/workspace/TierChecklistCard";
+import { WorkflowStepsCard } from "@/components/compliance/workspace/WorkflowStepsCard";
 import { StudentSummaryCard } from "@/components/compliance/workspace/StudentSummaryCard";
 import { TimelineCard } from "@/components/compliance/workspace/TimelineCard";
 import { OpenActionsCard } from "@/components/compliance/workspace/OpenActionsCard";
 import { DocumentsCard } from "@/components/compliance/workspace/DocumentsCard";
 import { SarbPacketCard } from "@/components/compliance/workspace/SarbPacketCard";
-import { RootCauseCard } from "@/components/compliance/workspace/RootCauseCard";
+
 import { CaseResolutionCard } from "@/components/compliance/workspace/CaseResolutionCard";
 import { AlertTriangle } from "lucide-react";
 
@@ -116,14 +116,13 @@ export function CaseWorkspacePage() {
       <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-6">
         {/* Left column */}
         <div className="space-y-6">
-          <TierChecklistCard
-            tierChecklist={data.tierChecklist}
-            currentTier={data.case.tier}
-          />
+          <WorkflowStepsCard data={data} onRefresh={refetch} />
           <OpenActionsCard
             actions={data.actions}
             caseId={data.case.id}
             tierChecklist={data.tierChecklist}
+            hasSartMeeting={!!data.sartMeeting}
+            hasSartFollowup={!!data.sartFollowup}
             onActionCompleted={refetch}
           />
           <DocumentsCard
@@ -146,12 +145,6 @@ export function CaseWorkspacePage() {
           <StudentSummaryCard
             metrics={data.metrics}
             caseData={data.case}
-          />
-          <RootCauseCard
-            caseId={data.case.id}
-            rootCause={data.rootCause}
-            rootCauseData={data.rootCauseData}
-            onSaved={refetch}
           />
           <TimelineCard timeline={data.timeline} />
           <CaseResolutionCard

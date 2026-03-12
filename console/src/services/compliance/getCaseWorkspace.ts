@@ -5,6 +5,13 @@ import type {
   ActionItem,
   TimelineItem,
   DocumentRecord,
+  RootCauseAssessment,
+  SartReferralData,
+  SartMeetingRecord,
+  SartFollowupRecord,
+  SartActionItem,
+  WorkflowStep,
+  SartMeetingOutcome,
 } from "@/types/caseWorkspace";
 import { getSchool } from "@/services/schools/getSchool";
 import { getDistrict } from "@/services/schools/getDistrict";
@@ -321,6 +328,217 @@ function computeRootCause(
 }
 
 /* ------------------------------------------------------------------ */
+/* SART data parsing                                                   */
+/* ------------------------------------------------------------------ */
+
+function parseRootCauseAssessment(
+  raw: unknown,
+): RootCauseAssessment | null {
+  if (!raw || typeof raw !== "object") return null;
+  const obj = raw as Record<string, unknown>;
+  if (!obj.categories || !obj.narrative) return null;
+  return {
+    categories: obj.categories as RootCauseAssessment["categories"],
+    narrative: obj.narrative as string,
+    savedAt: (obj.savedAt as string) ?? null,
+    savedBy: (obj.savedBy as string) ?? null,
+  };
+}
+
+function parseSartData(raw: unknown): SartReferralData | null {
+  if (!raw || typeof raw !== "object") return null;
+  const obj = raw as Record<string, unknown>;
+  if (!obj.referral_trigger || !obj.referral_date) return null;
+  return {
+    referral_trigger: obj.referral_trigger as SartReferralData["referral_trigger"],
+    referral_date: obj.referral_date as string,
+    prior_informal_interventions: (obj.prior_informal_interventions as string) ?? "",
+    referred_by: (obj.referred_by as string) ?? "",
+    savedAt: (obj.savedAt as string) ?? null,
+  };
+}
+
+function parseSartMeeting(
+  interventions: Array<Record<string, unknown>>,
+): SartMeetingRecord | null {
+  const meeting = interventions.find(
+    (i) => i.intervention_type === "sart_meeting",
+  );
+  if (!meeting) return null;
+  const meta = (meeting.metadata ?? {}) as Record<string, unknown>;
+  return {
+    id: meeting.id as string,
+    meeting_date: meeting.intervention_date as string,
+    attendees: (meta.attendees as string[]) ?? [],
+    family_present: !!(meta.family_present as boolean),
+    agenda_checklist: (meta.agenda_checklist as Record<string, boolean>) ?? {},
+    outcome: (meeting.outcome as SartMeetingOutcome) ?? "action_plan_agreed",
+    notes: (meeting.description as string) ?? "",
+    createdAt: meeting.created_at as string,
+  };
+}
+
+function parseSartFollowup(
+  interventions: Array<Record<string, unknown>>,
+): SartFollowupRecord | null {
+  const followup = interventions.find(
+    (i) => i.intervention_type === "sart_followup",
+  );
+  if (!followup) return null;
+  const meta = (followup.metadata ?? {}) as Record<string, unknown>;
+  return {
+    id: followup.id as string,
+    followup_date: followup.intervention_date as string,
+    attendance_improved: (meta.attendance_improved as SartFollowupRecord["attendance_improved"]) ?? "no",
+    action_items_completed: (meta.action_items_completed as Record<string, boolean>) ?? {},
+    outcome: (followup.outcome as SartFollowupRecord["outcome"]) ?? "continue_monitoring",
+    notes: (followup.description as string) ?? "",
+    createdAt: followup.created_at as string,
+  };
+}
+
+function parseSartActionPlan(
+  actions: Array<Record<string, unknown>>,
+): SartActionItem[] {
+  return actions
+    .filter((a) => a.action_type === "sart_action")
+    .map((a) => ({
+      id: a.id as string,
+      description: a.title as string,
+      assigned_role: ((a.description as string) ?? "").replace("Assigned to: ", ""),
+      due_date: a.due_date as string,
+      completed: a.status === "completed",
+      completed_at: (a.completed_at as string) ?? null,
+      completed_by_name: (a.completed_by_name as string) ?? null,
+    }));
+}
+
+/**
+ * Builds the 8-step workflow sequence with status and blocking reasons.
+ * Handles SART meeting outcome branching:
+ * - close_case → steps 6+7 are skipped (status = "complete" with note)
+ * - escalate_sarb → steps 6+7 still required before SARB
+ * - action_plan_agreed → normal flow
+ */
+function buildWorkflowSteps(
+  tierChecklist: CaseWorkspaceResponse["tierChecklist"],
+  rootCauseAssessment: RootCauseAssessment | null,
+  sartData: SartReferralData | null,
+  sartMeeting: SartMeetingRecord | null,
+  sartActionPlan: SartActionItem[],
+  sartFollowup: SartFollowupRecord | null,
+): WorkflowStep[] {
+  const t1Notif = tierChecklist.tier1.find((i) => i.key === "notification_sent");
+  const t2Conf = tierChecklist.tier2.find((i) => i.key === "conference_held");
+
+  const letterComplete = !!t1Notif?.completed;
+  const rcComplete =
+    rootCauseAssessment !== null &&
+    Object.values(rootCauseAssessment.categories).some((c) => c.checked) &&
+    (rootCauseAssessment.narrative?.length ?? 0) >= 50;
+  const sartReferralComplete = sartData !== null;
+  const sartMeetingComplete = sartMeeting !== null;
+  const conferenceComplete = !!t2Conf?.completed;
+  const meetingOutcome = sartMeeting?.outcome ?? null;
+  const closedAtMeeting = meetingOutcome === "close_case";
+  const sartPlanComplete = closedAtMeeting || sartActionPlan.length > 0;
+  const sartFollowupComplete = closedAtMeeting || sartFollowup !== null;
+  const followupEscalates = sartFollowup?.outcome === "escalate_sarb";
+
+  function step(
+    key: string,
+    tier: 1 | 2 | 3,
+    label: string,
+    isComplete: boolean,
+    completedAt: string | null,
+    completedBy: string | null,
+    prereqs: Array<{ met: boolean; reason: string }>,
+  ): WorkflowStep {
+    const blockingReasons = prereqs
+      .filter((p) => !p.met)
+      .map((p) => p.reason);
+    let status: WorkflowStep["status"] = "locked";
+    if (isComplete) {
+      status = "complete";
+    } else if (blockingReasons.length === 0) {
+      status = "active";
+    }
+    return { key, tier, label, status, completedAt, completedBy, blockingReasons };
+  }
+
+  const steps: WorkflowStep[] = [
+    // Step 1: Truancy letter (Tier 1) — no prereqs
+    step("truancy_letter", 1, "Truancy Letter Sent", letterComplete,
+      t1Notif?.completedAt ?? null, null, []),
+
+    // Step 2: Root cause assessment (Tier 1) — requires letter
+    step("root_cause_assessment", 1, "Root Cause Assessment", rcComplete,
+      rootCauseAssessment?.savedAt ?? null, rootCauseAssessment?.savedBy ?? null,
+      [{ met: letterComplete, reason: "Truancy letter must be sent first" }]),
+
+    // Step 3: SART referral (Tier 1) — requires letter + root cause
+    step("sart_referral", 1, "SART Referral Logged", sartReferralComplete,
+      sartData?.savedAt ?? null, null,
+      [
+        { met: letterComplete, reason: "Truancy letter must be sent first" },
+        { met: rcComplete, reason: "Root cause assessment must be completed" },
+      ]),
+
+    // Step 4: SART meeting (Tier 2) — requires all Tier 1 steps
+    step("sart_meeting", 2, "SART Meeting Held", sartMeetingComplete,
+      sartMeeting?.createdAt ?? null, null,
+      [
+        { met: letterComplete, reason: "Truancy letter must be sent first" },
+        { met: rcComplete, reason: "Root cause assessment must be completed" },
+        { met: sartReferralComplete, reason: "SART referral must be logged" },
+      ]),
+
+    // Step 5: Parent conference (Tier 2) — requires SART meeting
+    step("parent_conference", 2, "Parent/Guardian Conference", conferenceComplete,
+      t2Conf?.completedAt ?? null, null,
+      [
+        { met: sartMeetingComplete, reason: "SART meeting must be held first" },
+      ]),
+
+    // Step 6: SART action plan (Tier 2) — requires SART meeting
+    // Skipped if meeting outcome = close_case
+    step("sart_action_plan", 2,
+      closedAtMeeting ? "SART Action Plan (Skipped — case closed at SART meeting)" : "SART Action Plan",
+      sartPlanComplete,
+      closedAtMeeting ? sartMeeting?.createdAt ?? null : (sartActionPlan.length > 0 ? sartActionPlan[0].due_date : null),
+      null,
+      closedAtMeeting ? [] : [
+        { met: sartMeetingComplete, reason: "SART meeting must be held first" },
+        { met: conferenceComplete, reason: "Parent conference must be completed" },
+      ]),
+
+    // Step 7: 30-day follow-up (Tier 2) — requires action plan
+    // Skipped if meeting outcome = close_case
+    step("sart_followup", 2,
+      closedAtMeeting ? "30-Day Follow-up (Skipped — case closed at SART meeting)" : "30-Day Follow-up",
+      sartFollowupComplete,
+      sartFollowup?.createdAt ?? null, null,
+      closedAtMeeting ? [] : [
+        { met: sartPlanComplete, reason: "SART action plan must be created" },
+      ]),
+
+    // Step 8: SARB packet (Tier 3) — requires all 7 prior steps + follow-up = escalate_sarb
+    step("sarb_packet", 3, "SARB Packet", false, null, null,
+      [
+        { met: letterComplete, reason: "Truancy letter not sent" },
+        { met: rcComplete, reason: "Root cause assessment not documented" },
+        { met: sartReferralComplete, reason: "SART referral not logged" },
+        { met: sartMeetingComplete, reason: "SART meeting not held" },
+        { met: conferenceComplete, reason: "Parent conference not completed" },
+        { met: sartPlanComplete, reason: "SART action plan not created" },
+        { met: followupEscalates || closedAtMeeting, reason: "30-day follow-up must recommend SARB escalation" },
+      ]),
+  ];
+
+  return steps;
+}
+
+/* ------------------------------------------------------------------ */
 /* Main Service Function                                               */
 /* ------------------------------------------------------------------ */
 
@@ -338,6 +556,7 @@ export async function getCaseWorkspace(
        tier_2_conference_date, tier_3_triggered_at, tier_3_referral_date,
        is_resolved, resolution_type, resolution_notes, resolved_at,
        tier_requirements, sarb_packet_status, root_cause_data,
+       root_cause, sart_data,
        sarb_approved_by, sarb_approved_at, sarb_approval_notes,
        resolved_by, escalation_blocked_reason,
        created_at, updated_at`
@@ -389,14 +608,14 @@ export async function getCaseWorkspace(
     // All actions (for timeline)
     supabase
       .from("actions")
-      .select("id, action_type, title, description, status, created_at, completed_at")
+      .select("id, action_type, title, description, status, due_date, created_at, completed_at, completed_by_name")
       .eq("compliance_case_id", caseId)
       .order("created_at", { ascending: false })
       .limit(50),
     // Interventions
     supabase
       .from("intervention_log")
-      .select("id, intervention_type, description, outcome, created_at")
+      .select("id, intervention_type, intervention_date, description, outcome, performed_by_name, metadata, created_at")
       .eq("compliance_case_id", caseId)
       .order("created_at", { ascending: false })
       .limit(50),
@@ -609,7 +828,34 @@ export async function getCaseWorkspace(
           notes: (caseRow.sarb_approval_notes as string) ?? null,
         }
       : null,
+    /* SART workflow fields */
+    rootCauseAssessment: parseRootCauseAssessment(caseRow.root_cause),
+    sartData: parseSartData(caseRow.sart_data),
+    sartMeeting: parseSartMeeting(
+      (interventionsResult.data ?? []) as Array<Record<string, unknown>>,
+    ),
+    sartFollowup: parseSartFollowup(
+      (interventionsResult.data ?? []) as Array<Record<string, unknown>>,
+    ),
+    sartActionPlan: parseSartActionPlan(
+      (allActionsResult.data ?? []) as Array<Record<string, unknown>>,
+    ),
+    districtToolkit:
+      district?.toolkit_url && district?.toolkit_name
+        ? { url: district.toolkit_url, name: district.toolkit_name }
+        : null,
+    workflowSteps: [], // placeholder — computed below
   };
+
+  // Compute workflow steps (needs the built tierChecklist + SART data)
+  result.workflowSteps = buildWorkflowSteps(
+    result.tierChecklist,
+    result.rootCauseAssessment,
+    result.sartData,
+    result.sartMeeting,
+    result.sartActionPlan,
+    result.sartFollowup,
+  );
 
   return result;
 }

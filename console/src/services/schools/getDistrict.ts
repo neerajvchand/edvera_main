@@ -11,7 +11,7 @@ export async function getDistrict(
   try {
     const { data, error } = await supabase
       .from("districts")
-      .select("id, name, address, phone, superintendent_name, county_office_id")
+      .select("id, name, address, phone, superintendent_name, county_office_id, toolkit_url, toolkit_name")
       .eq("id", districtId)
       .single();
 
