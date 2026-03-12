@@ -39,7 +39,17 @@ function actionIcon(type: string) {
   return ClipboardList;
 }
 
-const SARB_ACTION_TYPES = [
+const TIER_2_ACTION_TYPES = [
+  "followup_call",
+  "follow_up_call",
+  "follow_up_contact",
+  "phone_call",
+  "schedule_conference",
+  "parent_guardian_conference",
+  "conference",
+];
+
+const TIER_3_ACTION_TYPES = [
   "prepare_sarb_packet",
   "sarb_referral",
   "sarb_packet",
@@ -68,17 +78,47 @@ function formatDate(iso: string): string {
   });
 }
 
-/** Check whether Tier 1 + Tier 2 requirements are met (frontend gate) */
-function isTierGateOpen(
-  tierChecklist: CaseWorkspaceResponse["tierChecklist"]
-): boolean {
+/**
+ * Returns a list of human-readable reasons why this action is blocked,
+ * or an empty array if the action can be completed.
+ */
+function getBlockingReasons(
+  actionType: string,
+  tierChecklist: CaseWorkspaceResponse["tierChecklist"],
+): string[] {
   const t1NotifSent = tierChecklist.tier1.find(
     (i) => i.key === "notification_sent"
   );
   const t2ConfHeld = tierChecklist.tier2.find(
     (i) => i.key === "conference_held"
   );
-  return !!t1NotifSent?.completed && !!t2ConfHeld?.completed;
+
+  // Tier 1 actions (send_letter) — no prerequisites, always available
+  // Tier 2 actions — require Tier 1 notification sent
+  if (TIER_2_ACTION_TYPES.includes(actionType)) {
+    const missing: string[] = [];
+    if (!t1NotifSent?.completed) {
+      missing.push("Tier 1 notification letter must be sent first (EC §48260.5)");
+    }
+    return missing;
+  }
+
+  // Tier 3 actions — require Tier 1 notification + Tier 2 conference
+  if (TIER_3_ACTION_TYPES.includes(actionType)) {
+    const missing: string[] = [];
+    if (!t1NotifSent?.completed) {
+      missing.push("Tier 1 notification letter has not been sent");
+    }
+    if (!t2ConfHeld?.completed) {
+      missing.push("Tier 2 parent/guardian conference has not been held");
+    }
+    if (missing.length > 0) {
+      missing.push("EC §48263 requires prior tier documentation before SARB referral");
+    }
+    return missing;
+  }
+
+  return [];
 }
 
 /* ------------------------------------------------------------------ */
@@ -110,7 +150,6 @@ export function OpenActionsCard({
   );
 
   const count = actions.length;
-  const gateOpen = isTierGateOpen(tierChecklist);
 
   return (
     <>
@@ -132,29 +171,29 @@ export function OpenActionsCard({
               const Icon = actionIcon(action.type);
               const priority = PRIORITY_STYLES[action.priority] ?? PRIORITY_STYLES.medium;
               const overdue = isOverdue(action.dueDate);
-              const isSarb = SARB_ACTION_TYPES.includes(action.type);
-              const isGated = isSarb && !gateOpen;
+              const blockingReasons = getBlockingReasons(action.type, tierChecklist);
+              const isBlocked = blockingReasons.length > 0;
 
               return (
                 <div
                   key={action.id}
                   className={cn(
                     "flex items-start gap-3 p-3 rounded-lg border transition-colors",
-                    isGated
+                    isBlocked
                       ? "border-amber-200 bg-amber-50/30"
                       : "border-gray-100 hover:border-gray-200"
                   )}
                 >
                   {/* Icon */}
                   <div className="shrink-0 mt-0.5 rounded-lg p-1.5 bg-gray-50">
-                    <Icon className={cn("h-4 w-4", isGated ? "text-gray-300" : "text-gray-500")} />
+                    <Icon className={cn("h-4 w-4", isBlocked ? "text-gray-300" : "text-gray-500")} />
                   </div>
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
                     <p className={cn(
                       "text-sm font-medium truncate",
-                      isGated ? "text-gray-400" : "text-gray-900"
+                      isBlocked ? "text-gray-400" : "text-gray-900"
                     )}>
                       {action.title}
                     </p>
@@ -190,25 +229,24 @@ export function OpenActionsCard({
                       )}
                     </div>
 
-                    {/* Tier gate warning for SARB actions */}
-                    {isGated && (
-                      <p className="text-xs text-amber-600 mt-1.5 flex items-center gap-1">
-                        <Lock className="h-3 w-3" />
-                        Tier 1 &amp; 2 must be completed first (EC §48263)
-                      </p>
+                    {/* Prerequisite blocking reasons */}
+                    {isBlocked && (
+                      <div className="mt-2 space-y-1">
+                        <p className="text-xs font-medium text-amber-700 flex items-center gap-1">
+                          <Lock className="h-3 w-3 shrink-0" />
+                          Prerequisites not met:
+                        </p>
+                        {blockingReasons.map((reason, idx) => (
+                          <p key={idx} className="text-xs text-amber-600 ml-4">
+                            &bull; {reason}
+                          </p>
+                        ))}
+                      </div>
                     )}
                   </div>
 
-                  {/* Complete button */}
-                  {isGated ? (
-                    <button
-                      disabled
-                      title="Prior tier requirements must be completed first"
-                      className="shrink-0 px-3 py-1.5 text-xs font-medium text-gray-400 bg-gray-100 rounded-lg cursor-not-allowed"
-                    >
-                      Blocked
-                    </button>
-                  ) : (
+                  {/* Complete button — only shown when prerequisites are met */}
+                  {!isBlocked && (
                     <button
                       onClick={() => setCompletingAction(action)}
                       className="shrink-0 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors"

@@ -17,25 +17,70 @@ import type { ActionCompletionData } from "@/types/action";
 export type { ActionCompletionData } from "@/types/action";
 
 /* ------------------------------------------------------------------ */
-/* Tier Gate — EC §48263 requires prior documentation before SARB      */
+/* Attribution — resolve current user's display name + role            */
 /* ------------------------------------------------------------------ */
 
-const SARB_ACTION_TYPES = [
+async function getAttribution(): Promise<{
+  userId: string;
+  name: string;
+  role: string;
+} | null> {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("display_name, role")
+      .eq("user_id", user.id)
+      .single();
+
+    return {
+      userId: user.id,
+      name: profile?.display_name ?? user.email ?? "Unknown",
+      role: profile?.role ?? "staff",
+    };
+  } catch {
+    return null;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Tier Gate — per-tier prerequisite checks                            */
+/* ------------------------------------------------------------------ */
+
+const TIER_2_ACTION_TYPES = [
+  "followup_call",
+  "follow_up_call",
+  "follow_up_contact",
+  "phone_call",
+  "schedule_conference",
+  "parent_guardian_conference",
+  "conference",
+];
+
+const TIER_3_ACTION_TYPES = [
   "prepare_sarb_packet",
   "sarb_referral",
   "sarb_packet",
 ];
 
 /**
- * Checks whether Tier 1 and Tier 2 requirements are satisfied.
- * If not, SARB-related actions cannot be completed per EC §48263.
+ * Checks per-tier prerequisites before allowing action completion.
+ * - Tier 1 actions: no prerequisites (always allowed)
+ * - Tier 2 actions: require Tier 1 notification_sent
+ * - Tier 3 actions: require Tier 1 notification_sent + Tier 2 conference_held
  * Returns null when gate passes, or an error string when blocked.
  */
 async function checkTierGate(
   caseId: string,
   actionType: string
 ): Promise<string | null> {
-  if (!SARB_ACTION_TYPES.includes(actionType)) return null;
+  const isTier2 = TIER_2_ACTION_TYPES.includes(actionType);
+  const isTier3 = TIER_3_ACTION_TYPES.includes(actionType);
+  if (!isTier2 && !isTier3) return null;
 
   const { data: caseRow } = await supabase
     .from("compliance_cases")
@@ -57,9 +102,17 @@ async function checkTierGate(
     | undefined;
   const confHeld = t2.conference_held as { completed?: boolean } | undefined;
 
+  if (isTier2) {
+    if (!notifSent?.completed) {
+      return "Tier 1 notification letter must be sent before Tier 2 actions can be completed (EC §48260.5).";
+    }
+    return null;
+  }
+
+  // Tier 3
   const missing: string[] = [];
   if (!notifSent?.completed) missing.push("Tier 1 notification letter");
-  if (!confHeld?.completed) missing.push("Tier 2 conference");
+  if (!confHeld?.completed) missing.push("Tier 2 parent/guardian conference");
 
   if (missing.length > 0) {
     return `EC §48263 requires prior documentation: ${missing.join(" and ")} must be completed before SARB referral.`;
@@ -126,7 +179,10 @@ export async function completeAction(
     if (completionData.followUpDate)
       completionJson.follow_up_date = completionData.followUpDate;
 
-    // 3. Update the action record
+    // 3. Resolve attribution for the current user
+    const attribution = await getAttribution();
+
+    // 4. Update the action record
     const { error: updateError } = await supabase
       .from("actions")
       .update({
@@ -135,6 +191,9 @@ export async function completeAction(
         completion_notes: completionData.notes ?? null,
         completion_data: completionJson,
         completed_at: completionData.completedAt,
+        completed_by: attribution?.userId ?? null,
+        completed_by_name: attribution?.name ?? null,
+        completed_by_role: attribution?.role ?? null,
       })
       .eq("id", actionId);
 
@@ -143,7 +202,7 @@ export async function completeAction(
       return { success: false, error: "Failed to update action" };
     }
 
-    // 4. Sync tier requirements if this action has a compliance case
+    // 5. Sync tier requirements if this action has a compliance case
     const effectiveCaseId = action.compliance_case_id ?? caseId;
     if (effectiveCaseId) {
       try {
