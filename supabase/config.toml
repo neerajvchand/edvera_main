@@ -1,0 +1,25 @@
+project_id = "zyvemdohhtfaetzmaiwf"
+
+[functions.insight-question]
+verify_jwt = false
+
+[functions.insights-answer]
+verify_jwt = false
+
+[functions.ingest-school-calendar]
+verify_jwt = false
+
+[functions.ingest-bell-schedule]
+verify_jwt = false
+
+[functions.detect-board-meetings]
+verify_jwt = false
+
+[functions.note-ai-assist]
+verify_jwt = false
+
+[functions.process-document]
+verify_jwt = false
+
+[functions.csv-analysis]
+verify_jwt = false
