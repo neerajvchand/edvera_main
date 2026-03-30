@@ -148,20 +148,8 @@ function RiskSummary({ brief }: { brief: AgentBrief }) {
 /* Main Component                                                      */
 /* ------------------------------------------------------------------ */
 
-export function AgentBriefPanel({
-  userId,
-  districtId,
-  schoolId,
-}: {
-  userId: string | null;
-  districtId: string | null;
-  schoolId: string | null;
-}) {
-  const { brief, loading, error, refetch } = useAgentBrief(
-    userId,
-    districtId,
-    schoolId,
-  );
+export function AgentBriefPanel({ schoolId }: { schoolId: string | null }) {
+  const { brief, loading, error, refetch } = useAgentBrief(schoolId);
   const [expanded, setExpanded] = useState(false);
 
   // Don't render if agent is not configured (brief is null, no error, not loading)

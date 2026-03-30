@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.csv-analysis]
 verify_jwt = false
+
+[functions.agent-daily-brief]
+verify_jwt = false

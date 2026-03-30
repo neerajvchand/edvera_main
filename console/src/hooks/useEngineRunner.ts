@@ -31,6 +31,10 @@ export interface EngineResults {
  * Hook that runs the full engine pipeline (snapshots → risk signals →
  * compliance → actions) by calling the run-all-engines Edge Function.
  *
+ * Requires an authenticated user with role `district_admin` and active
+ * staff_memberships (the function scopes the run to that district).
+ * Cron/server jobs should use X-Admin-API-Key plus JSON `{ district_id }` instead.
+ *
  * This avoids importing Deno-specific pure functions into the browser.
  * The Edge Function uses the service role key internally, so we invoke
  * it through the Supabase client's functions.invoke() method.

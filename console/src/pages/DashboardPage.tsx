@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { InfoTooltip } from "@/components/InfoTooltip";
@@ -6,9 +5,8 @@ import { InsightsPanel } from "@/components/InsightsPanel";
 import { AgentBriefPanel } from "@/components/dashboard/AgentBriefPanel";
 import { useDashboard, getAbsenceBand } from "@/hooks/useDashboard";
 import type { DashboardMetrics } from "@/hooks/useDashboard";
-import { useSession } from "@/hooks/useSession";
-import { getStaffMembership } from "@/services/profiles/getStaffMembership";
-import { getSchool } from "@/services/schools/getSchool";
+import { useMembership } from "@/context/MembershipContext";
+import { usePermission } from "@/hooks/usePermission";
 import {
   AlertTriangle,
   ClipboardList,
@@ -201,29 +199,8 @@ function PriorityBriefingCard({ metrics }: { metrics: DashboardMetrics }) {
 
 export function DashboardPage() {
   const { metrics, loading } = useDashboard();
-  const { user } = useSession();
-  const [agentCtx, setAgentCtx] = useState<{
-    schoolId: string | null;
-    districtId: string | null;
-  }>({ schoolId: null, districtId: null });
-
-  useEffect(() => {
-    if (!user) return;
-    (async () => {
-      try {
-        const membership = await getStaffMembership(user.id);
-        if (!membership?.school_id) return;
-        const school = await getSchool(membership.school_id);
-        if (!school) return;
-        setAgentCtx({
-          schoolId: school.id,
-          districtId: school.district_id,
-        });
-      } catch {
-        // Agent panel is optional — silently skip
-      }
-    })();
-  }, [user]);
+  const { schoolId } = useMembership();
+  const { can } = usePermission();
 
   if (loading) {
     return (
@@ -362,11 +339,9 @@ export function DashboardPage() {
       <InsightsPanel metrics={metrics} />
 
       {/* Agent Brief */}
-      <AgentBriefPanel
-        userId={user?.id ?? null}
-        districtId={agentCtx.districtId}
-        schoolId={agentCtx.schoolId}
-      />
+      {can("dashboard", "agent") && (
+        <AgentBriefPanel schoolId={schoolId} />
+      )}
 
       {/* School Breakdown Table */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-clip overflow-y-visible">

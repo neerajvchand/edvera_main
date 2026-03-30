@@ -42,8 +42,12 @@ function chronicBand(
   return "satisfactory";
 }
 
-function derivePermissions(role: string | null): CaseWorkspaceResponse["permissions"] {
-  switch (role) {
+/**
+ * Case workspace UI capabilities from the user's staff role.
+ * Source of truth is staff_memberships.role — profiles.role is display only.
+ */
+function derivePermissions(staffMembershipRole: string | null): CaseWorkspaceResponse["permissions"] {
+  switch (staffMembershipRole) {
     case "district_admin":
       return {
         canView: true,
@@ -342,7 +346,8 @@ function computeRootCause(
 
 export async function getCaseWorkspace(
   caseId: string,
-  userId: string
+  userId: string,
+  staffMembershipRole: string | null,
 ): Promise<CaseWorkspaceResponse> {
   // 1. Fetch case first (we need student_id, school_id for subsequent queries)
   const { data: caseRow, error: caseError } = await supabase
@@ -370,7 +375,6 @@ export async function getCaseWorkspace(
   const [
     studentResult,
     school,
-    profileResult,
     actionsResult,
     allActionsResult,
     interventionsResult,
@@ -388,12 +392,6 @@ export async function getCaseWorkspace(
       .single(),
     // School — via service
     getSchool(caseRow.school_id).catch(() => null),
-    // Profile (current user)
-    supabase
-      .from("profiles")
-      .select("id, user_id, display_name, role")
-      .eq("user_id", userId)
-      .single(),
     // Open actions
     supabase
       .from("actions")
@@ -440,7 +438,6 @@ export async function getCaseWorkspace(
   ]);
 
   const student = studentResult.data;
-  const profile = profileResult.data;
 
   // Fetch district + county office via services
   const districtId = school?.district_id ?? null;
@@ -601,7 +598,7 @@ export async function getCaseWorkspace(
       thirtyDayRate,
       priorThirtyDayRate,
     },
-    permissions: derivePermissions(profile?.role ?? null),
+    permissions: derivePermissions(staffMembershipRole),
     tierChecklist: buildTierChecklist(
       caseRow.tier_requirements as Record<string, unknown> | null
     ),

@@ -16,10 +16,15 @@
  * to the next engine. Risk signals and compliance read from snapshots
  * independently, so they can still run even if the other fails.
  *
- * Usage:
+ * Usage (cron / server — scoped to one district):
  *   curl -i --location --request POST \
  *     'http://localhost:54321/functions/v1/run-all-engines' \
- *     --header 'Authorization: Bearer SERVICE_ROLE_KEY'
+ *     --header 'X-Admin-API-Key: YOUR_ADMIN_API_KEY' \
+ *     --header 'Content-Type: application/json' \
+ *     --data '{"district_id":"<uuid>"}'
+ *
+ * Usage (browser — district admin JWT + Supabase session):
+ *   supabase.functions.invoke('run-all-engines', { method: 'POST', body: {} })
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -32,9 +37,130 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, x-admin-api-key",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
+
+/* ------------------------------------------------------------------ */
+/* Auth helpers                                                        */
+/* ------------------------------------------------------------------ */
+
+function jsonError(status: number, error: string): Response {
+  return new Response(JSON.stringify({ error }), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+/**
+ * Constant-time comparison via SHA-256 digests (avoids length leaks on raw compare).
+ */
+async function timingSafeStringEqual(
+  expected: string,
+  received: string,
+): Promise<boolean> {
+  const enc = new TextEncoder();
+  const digest = (s: string) => crypto.subtle.digest("SHA-256", enc.encode(s));
+  const [bufA, bufB] = await Promise.all([digest(expected), digest(received)]);
+  return crypto.subtle.timingSafeEqual(
+    new Uint8Array(bufA),
+    new Uint8Array(bufB),
+  );
+}
+
+type AuthOk = { ok: true; districtId: string };
+type AuthFail = { ok: false; response: Response };
+
+async function authorizeRunAllEngines(
+  req: Request,
+  supabaseUrl: string,
+  supabaseAnonKey: string,
+  body: Record<string, unknown>,
+): Promise<AuthOk | AuthFail> {
+  const adminApiKey = Deno.env.get("ADMIN_API_KEY");
+  const providedAdminKey = req.headers.get("X-Admin-API-Key");
+
+  if (providedAdminKey != null && providedAdminKey !== "") {
+    if (!adminApiKey || adminApiKey.length === 0) {
+      return { ok: false, response: jsonError(401, "Unauthorized") };
+    }
+    const match = await timingSafeStringEqual(adminApiKey, providedAdminKey);
+    if (!match) {
+      return { ok: false, response: jsonError(401, "Unauthorized") };
+    }
+    const districtId = body["district_id"];
+    if (
+      districtId == null ||
+      typeof districtId !== "string" ||
+      districtId.trim() === ""
+    ) {
+      return {
+        ok: false,
+        response: jsonError(400, "district_id is required in request body"),
+      };
+    }
+    return { ok: true, districtId: districtId.trim() };
+  }
+
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader) {
+    return { ok: false, response: jsonError(401, "Unauthorized") };
+  }
+
+  const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: { Authorization: authHeader } },
+  });
+
+  const { data: userData, error: authError } = await userClient.auth.getUser();
+  if (authError || !userData.user) {
+    return { ok: false, response: jsonError(401, "Unauthorized") };
+  }
+
+  const { data: rows, error: memError } = await userClient
+    .from("staff_memberships")
+    .select("school_id, schools!inner(district_id)")
+    .eq("role", "district_admin")
+    .eq("is_active", true);
+
+  if (memError) {
+    console.error("run-all-engines: district admin membership query error", memError);
+    return { ok: false, response: jsonError(403, "Forbidden") };
+  }
+
+  if (!rows || rows.length === 0) {
+    return { ok: false, response: jsonError(403, "Forbidden") };
+  }
+
+  const districtIds = new Set<string>();
+  for (const row of rows as Array<{ schools: unknown }>) {
+    const s = row.schools;
+    if (Array.isArray(s)) {
+      for (const x of s) {
+        const d = (x as { district_id?: string })?.district_id;
+        if (d) districtIds.add(d);
+      }
+    } else if (s && typeof s === "object" && "district_id" in s) {
+      const d = (s as { district_id: string }).district_id;
+      if (d) districtIds.add(d);
+    }
+  }
+
+  if (districtIds.size === 0) {
+    return { ok: false, response: jsonError(403, "Forbidden") };
+  }
+
+  if (districtIds.size > 1) {
+    return {
+      ok: false,
+      response: jsonError(
+        403,
+        "Forbidden: district admin must belong to a single district for this action",
+      ),
+    };
+  }
+
+  return { ok: true, districtId: [...districtIds][0] };
+}
 
 // Pure engine imports
 import {
@@ -94,6 +220,63 @@ async function fetchAllRows(
   }
 
   return allRows;
+}
+
+const IN_CHUNK_SIZE = 120;
+
+async function getSchoolIdsForDistrict(
+  supabase: ReturnType<typeof createClient>,
+  districtId: string,
+): Promise<string[]> {
+  const rows = await fetchAllRows(supabase, (client) =>
+    client.from("schools").select("id").eq("district_id", districtId)
+  );
+  return rows.map((r: { id: string }) => r.id);
+}
+
+async function fetchAttendanceDailyForStudents(
+  supabase: ReturnType<typeof createClient>,
+  studentIds: string[],
+  selectFields: string,
+  dateRange?: { from: string; to: string },
+): Promise<any[]> {
+  if (studentIds.length === 0) return [];
+  const out: any[] = [];
+  for (let i = 0; i < studentIds.length; i += IN_CHUNK_SIZE) {
+    const chunk = studentIds.slice(i, i + IN_CHUNK_SIZE);
+    const rows = await fetchAllRows(supabase, (client) => {
+      let q = client.from("attendance_daily").select(selectFields).in(
+        "student_id",
+        chunk,
+      );
+      if (dateRange) {
+        q = q
+          .gte("calendar_date", dateRange.from)
+          .lte("calendar_date", dateRange.to);
+      }
+      return q;
+    });
+    out.push(...rows);
+  }
+  return out;
+}
+
+async function fetchRowsInChunks<T>(
+  supabase: ReturnType<typeof createClient>,
+  ids: string[],
+  buildQuery: (
+    client: ReturnType<typeof createClient>,
+    chunk: string[],
+  ) => any,
+): Promise<T[]> {
+  if (ids.length === 0) return [];
+  const out: T[] = [];
+  for (let i = 0; i < ids.length; i += IN_CHUNK_SIZE) {
+    const chunk = ids.slice(i, i + IN_CHUNK_SIZE);
+    const rows = await fetchAllRows(supabase, (c) => buildQuery(c, chunk));
+    out.push(...rows);
+  }
+  return out;
 }
 
 function getAcademicYear(date: Date): string {
@@ -217,32 +400,46 @@ interface SnapshotPhaseResult {
 async function runSnapshots(
   supabase: ReturnType<typeof createClient>,
   academicYear: string,
-  today: string
+  today: string,
+  districtId: string,
 ): Promise<SnapshotPhaseResult> {
   const phaseStart = Date.now();
-  console.log(`[snapshots] starting for ${academicYear}`);
+  console.log(`[snapshots] starting for ${academicYear} district=${districtId}`);
 
-  // ---- Fetch ----
-  const [enrollments, attendanceData, calendarData] = await Promise.all([
-    fetchAllRows(supabase, (client) =>
-      client
-        .from("enrollments")
-        .select("student_id, school_id, academic_year, enter_date, leave_date")
-        .eq("academic_year", academicYear)
-        .is("leave_date", null)
-    ),
-    fetchAllRows(supabase, (client) =>
-      client
-        .from("attendance_daily")
-        .select(
-          "student_id, calendar_date, canonical_type, counts_for_ada, counts_as_truancy"
-        )
+  const schoolIds = await getSchoolIdsForDistrict(supabase, districtId);
+  if (schoolIds.length === 0) {
+    const elapsed = (Date.now() - phaseStart) / 1000;
+    return {
+      processed: 0,
+      chronic_count: 0,
+      error_count: 0,
+      elapsed_seconds: parseFloat(elapsed.toFixed(1)),
+    };
+  }
+
+  const enrollments = await fetchAllRows(supabase, (client) =>
+    client
+      .from("enrollments")
+      .select("student_id, school_id, academic_year, enter_date, leave_date")
+      .eq("academic_year", academicYear)
+      .is("leave_date", null)
+      .in("school_id", schoolIds)
+  );
+
+  const studentIds = [...new Set(enrollments.map((e: { student_id: string }) => e.student_id))];
+
+  const [attendanceData, calendarData] = await Promise.all([
+    fetchAttendanceDailyForStudents(
+      supabase,
+      studentIds,
+      "student_id, calendar_date, canonical_type, counts_for_ada, counts_as_truancy",
     ),
     fetchAllRows(supabase, (client) =>
       client
         .from("school_calendars")
         .select("school_id, calendar_date, is_school_day")
         .eq("academic_year", academicYear)
+        .in("school_id", schoolIds)
     ),
   ]);
 
@@ -379,11 +576,26 @@ interface RiskSignalPhaseResult {
 async function runRiskSignals(
   supabase: ReturnType<typeof createClient>,
   academicYear: string,
-  today: string
+  today: string,
+  districtId: string,
 ): Promise<RiskSignalPhaseResult> {
   const phaseStart = Date.now();
   const now = new Date(today);
-  console.log(`[risk-signals] starting for ${academicYear}`);
+  console.log(`[risk-signals] starting for ${academicYear} district=${districtId}`);
+
+  const schoolIds = await getSchoolIdsForDistrict(supabase, districtId);
+  if (schoolIds.length === 0) {
+    const elapsed = (Date.now() - phaseStart) / 1000;
+    return {
+      processed: 0,
+      elevated: 0,
+      softening: 0,
+      stable: 0,
+      pending: 0,
+      error_count: 0,
+      elapsed_seconds: parseFloat(elapsed.toFixed(1)),
+    };
+  }
 
   // ---- Date windows ----
   const recent30Start = new Date(now);
@@ -398,36 +610,44 @@ async function runRiskSignals(
   priorEnd.setDate(priorEnd.getDate() - 1);
   const priorEndStr = toDateStr(priorEnd);
 
-  // ---- Fetch ----
-  const [snapshots, attendanceData, calendarData, existingSignals] =
-    await Promise.all([
-      fetchAllRows(supabase, (client) =>
-        client
-          .from("attendance_snapshots")
-          .select(
-            "student_id, school_id, academic_year, days_enrolled, " +
-              "days_present, days_absent, attendance_rate, is_chronic_absent"
-          )
-          .eq("academic_year", academicYear)
-      ),
-      fetchAllRows(supabase, (client) =>
-        client
-          .from("attendance_daily")
-          .select("student_id, calendar_date, canonical_type")
-          .gte("calendar_date", priorStartStr)
-          .lte("calendar_date", today)
-      ),
-      fetchAllRows(supabase, (client) =>
-        client
-          .from("school_calendars")
-          .select("school_id, calendar_date, is_school_day")
-          .gte("calendar_date", priorStartStr)
-          .lte("calendar_date", today)
-      ),
-      fetchAllRows(supabase, (client) =>
-        client.from("risk_signals").select("student_id, signal_level")
-      ),
-    ]);
+  const snapshots = await fetchAllRows(supabase, (client) =>
+    client
+      .from("attendance_snapshots")
+      .select(
+        "student_id, school_id, academic_year, days_enrolled, " +
+          "days_present, days_absent, attendance_rate, is_chronic_absent"
+      )
+      .eq("academic_year", academicYear)
+      .in("school_id", schoolIds)
+  );
+
+  const studentIds = [...new Set(snapshots.map((s: { student_id: string }) => s.student_id))];
+
+  const [attendanceData, calendarData, existingSignals] = await Promise.all([
+    fetchAttendanceDailyForStudents(
+      supabase,
+      studentIds,
+      "student_id, calendar_date, canonical_type",
+      { from: priorStartStr, to: today },
+    ),
+    fetchAllRows(supabase, (client) =>
+      client
+        .from("school_calendars")
+        .select("school_id, calendar_date, is_school_day")
+        .in("school_id", schoolIds)
+        .gte("calendar_date", priorStartStr)
+        .lte("calendar_date", today)
+    ),
+    fetchRowsInChunks<{ student_id: string; signal_level: string }>(
+      supabase,
+      studentIds,
+      (client, chunk) =>
+        client.from("risk_signals").select("student_id, signal_level").in(
+          "student_id",
+          chunk,
+        ),
+    ),
+  ]);
 
   console.log(
     `[risk-signals] fetched ${snapshots.length} snapshots, ` +
@@ -613,13 +833,29 @@ interface CompliancePhaseResult {
 async function runCompliance(
   supabase: ReturnType<typeof createClient>,
   academicYear: string,
-  today: string
+  today: string,
+  districtId: string,
 ): Promise<CompliancePhaseResult> {
   const phaseStart = Date.now();
-  console.log(`[compliance] starting for ${academicYear}`);
+  console.log(`[compliance] starting for ${academicYear} district=${districtId}`);
 
-  // ---- Fetch ----
-  const [snapshots, casesData, interventionsData] = await Promise.all([
+  const schoolIds = await getSchoolIdsForDistrict(supabase, districtId);
+  if (schoolIds.length === 0) {
+    const elapsed = (Date.now() - phaseStart) / 1000;
+    return {
+      processed: 0,
+      new_cases: 0,
+      escalations: 0,
+      count_updates: 0,
+      tier_1: 0,
+      tier_2: 0,
+      tier_3: 0,
+      error_count: 0,
+      elapsed_seconds: parseFloat(elapsed.toFixed(1)),
+    };
+  }
+
+  const [snapshots, casesData] = await Promise.all([
     fetchAllRows(supabase, (client) =>
       client
         .from("attendance_snapshots")
@@ -630,6 +866,7 @@ async function runCompliance(
             "attendance_rate, is_chronic_absent"
         )
         .eq("academic_year", academicYear)
+        .in("school_id", schoolIds)
     ),
     fetchAllRows(supabase, (client) =>
       client
@@ -641,14 +878,26 @@ async function runCompliance(
         )
         .eq("academic_year", academicYear)
         .eq("is_resolved", false)
+        .in("school_id", schoolIds)
     ),
-    fetchAllRows(supabase, (client) =>
+  ]);
+
+  const caseIds = casesData.map((c: { id: string }) => c.id);
+  const interventionsData = await fetchRowsInChunks<{
+    id: string;
+    compliance_case_id: string;
+    intervention_type: string;
+    intervention_date: string;
+  }>(
+    supabase,
+    caseIds,
+    (client, chunk) =>
       client
         .from("intervention_log")
         .select("id, compliance_case_id, intervention_type, intervention_date")
         .not("compliance_case_id", "is", null)
-    ),
-  ]);
+        .in("compliance_case_id", chunk),
+  );
 
   console.log(
     `[compliance] fetched ${snapshots.length} snapshots, ` +
@@ -885,32 +1134,58 @@ interface ActionPhaseResult {
 
 async function runActions(
   supabase: ReturnType<typeof createClient>,
-  today: string
+  today: string,
+  districtId: string,
 ): Promise<ActionPhaseResult> {
   const phaseStart = Date.now();
-  console.log(`[actions] starting action generation`);
+  console.log(`[actions] starting action generation district=${districtId}`);
 
-  // ---- Fetch open compliance cases + existing actions + risk signals ----
-  const [casesData, existingActionsData, riskSignalsData] = await Promise.all([
-    fetchAllRows(supabase, (client) =>
-      client
-        .from("compliance_cases")
-        .select(
-          "id, student_id, school_id, current_tier, created_at, " +
-            "tier_1_triggered_at, tier_2_triggered_at, tier_3_triggered_at, " +
-            "is_resolved, case_workflow_stage, updated_at, truancy_count, monitoring_started_at"
-        )
-        .eq("is_resolved", false)
-    ),
-    fetchAllRows(supabase, (client) =>
+  const schoolIds = await getSchoolIdsForDistrict(supabase, districtId);
+  if (schoolIds.length === 0) {
+    const elapsed = (Date.now() - phaseStart) / 1000;
+    return {
+      new_actions: 0,
+      by_type: {},
+      error_count: 0,
+      elapsed_seconds: parseFloat(elapsed.toFixed(1)),
+    };
+  }
+
+  const casesData = await fetchAllRows(supabase, (client) =>
+    client
+      .from("compliance_cases")
+      .select(
+        "id, student_id, school_id, current_tier, created_at, " +
+          "tier_1_triggered_at, tier_2_triggered_at, tier_3_triggered_at, " +
+          "is_resolved, case_workflow_stage, updated_at, truancy_count, monitoring_started_at"
+      )
+      .eq("is_resolved", false)
+      .in("school_id", schoolIds)
+  );
+
+  const caseIds = casesData.map((c: { id: string }) => c.id);
+  const studentIds = [...new Set(casesData.map((c: { student_id: string }) => c.student_id))];
+
+  const [existingActionsData, riskSignalsData] = await Promise.all([
+    fetchRowsInChunks<{
+      compliance_case_id: string;
+      action_type: string;
+      status: string;
+    }>(supabase, caseIds, (client, chunk) =>
       client
         .from("actions")
         .select("compliance_case_id, action_type, status")
+        .in("compliance_case_id", chunk)
     ),
-    fetchAllRows(supabase, (client) =>
+    fetchRowsInChunks<{
+      student_id: string;
+      attendance_rate: number | string | null;
+      trend_delta: number | string | null;
+    }>(supabase, studentIds, (client, chunk) =>
       client
         .from("risk_signals")
         .select("student_id, attendance_rate, trend_delta")
+        .in("student_id", chunk)
     ),
   ]);
 
@@ -1038,10 +1313,24 @@ const PER_PUPIL_DAILY_RATE = 65.0;
 async function runFunding(
   supabase: ReturnType<typeof createClient>,
   academicYear: string,
-  today: string
+  today: string,
+  districtId: string,
 ): Promise<FundingPhaseResult> {
   const phaseStart = Date.now();
-  console.log(`[funding] starting for ${academicYear}`);
+  console.log(`[funding] starting for ${academicYear} district=${districtId}`);
+
+  const districtSchoolIds = await getSchoolIdsForDistrict(supabase, districtId);
+  if (districtSchoolIds.length === 0) {
+    const elapsed = (Date.now() - phaseStart) / 1000;
+    return {
+      student_rows: 0,
+      school_rows: 0,
+      total_projected_loss: 0,
+      chronic_students: 0,
+      error_count: 0,
+      elapsed_seconds: parseFloat(elapsed.toFixed(1)),
+    };
+  }
 
   // ---- Step 1 & 2: Calendar totals and elapsed days ----
   const calendarData = await fetchAllRows(supabase, (client) =>
@@ -1050,6 +1339,7 @@ async function runFunding(
       .select("school_id, calendar_date, is_school_day")
       .eq("academic_year", academicYear)
       .eq("is_school_day", true)
+      .in("school_id", districtSchoolIds)
   );
 
   if (calendarData.length === 0) {
@@ -1074,7 +1364,7 @@ async function runFunding(
     }
   }
 
-  // ---- Step 3: Get ALL snapshots ----
+  // ---- Step 3: Snapshots for district schools ----
   const allSnapshots = await fetchAllRows(supabase, (client) =>
     client
       .from("attendance_snapshots")
@@ -1083,6 +1373,7 @@ async function runFunding(
           "days_present, attendance_rate, is_chronic_absent"
       )
       .eq("academic_year", academicYear)
+      .in("school_id", districtSchoolIds)
   );
 
   console.log(
@@ -1091,6 +1382,14 @@ async function runFunding(
   );
 
   if (allSnapshots.length === 0) {
+    const { error: delErr } = await supabase
+      .from("funding_projections")
+      .delete()
+      .in("school_id", districtSchoolIds)
+      .eq("academic_year", academicYear);
+    if (delErr) {
+      console.error(`[funding] delete (no snapshots) failed: ${delErr.message}`);
+    }
     const elapsed = (Date.now() - phaseStart) / 1000;
     return {
       student_rows: 0,
@@ -1160,18 +1459,15 @@ async function runFunding(
     }
   }
 
-  // ---- Step 5: Clear existing rows ----
-  const schoolIds = [...schoolAgg.keys()];
-  if (schoolIds.length > 0) {
-    const { error: deleteError } = await supabase
-      .from("funding_projections")
-      .delete()
-      .in("school_id", schoolIds)
-      .eq("academic_year", academicYear);
+  // ---- Step 5: Clear existing rows for all schools in this district ----
+  const { error: deleteError } = await supabase
+    .from("funding_projections")
+    .delete()
+    .in("school_id", districtSchoolIds)
+    .eq("academic_year", academicYear);
 
-    if (deleteError) {
-      console.error(`[funding] delete failed: ${deleteError.message}`);
-    }
+  if (deleteError) {
+    console.error(`[funding] delete failed: ${deleteError.message}`);
   }
 
   // ---- Step 6: Insert student-level rows ----
@@ -1279,33 +1575,70 @@ interface EffectivenessPhaseResult {
  */
 async function runEffectivenessBackfill(
   supabase: ReturnType<typeof createClient>,
-  today: string
+  today: string,
+  districtId: string,
 ): Promise<EffectivenessPhaseResult> {
   const phaseStart = Date.now();
-  console.log(`[effectiveness] starting backfill`);
+  console.log(`[effectiveness] starting backfill district=${districtId}`);
+
+  const schoolIds = await getSchoolIdsForDistrict(supabase, districtId);
+  if (schoolIds.length === 0) {
+    const elapsed = (Date.now() - phaseStart) / 1000;
+    return {
+      backfilled: 0,
+      error_count: 0,
+      elapsed_seconds: parseFloat(elapsed.toFixed(1)),
+    };
+  }
+
+  const caseRows = await fetchAllRows(supabase, (client) =>
+    client.from("compliance_cases").select("id").in("school_id", schoolIds)
+  );
+  const caseIds = caseRows.map((r: { id: string }) => r.id);
+  if (caseIds.length === 0) {
+    const elapsed = (Date.now() - phaseStart) / 1000;
+    console.log(`[effectiveness] no cases in district in ${elapsed.toFixed(1)}s`);
+    return {
+      backfilled: 0,
+      error_count: 0,
+      elapsed_seconds: parseFloat(elapsed.toFixed(1)),
+    };
+  }
 
   // 30 days ago in ISO format
   const cutoff = new Date(today);
   cutoff.setDate(cutoff.getDate() - 30);
   const cutoffStr = cutoff.toISOString();
 
-  // ---- Fetch eligible actions ----
-  const { data: eligibleActions, error: fetchErr } = await supabase
-    .from("actions")
-    .select("id, student_id")
-    .eq("status", "completed")
-    .not("attendance_rate_before", "is", null)
-    .is("attendance_rate_after_30d", null)
-    .lte("completed_at", cutoffStr)
-    .limit(500); // cap per run to avoid timeouts
+  // ---- Fetch eligible actions (scoped to district cases; cap total per run) ----
+  const eligibleActions: { id: string; student_id: string }[] = [];
+  const MAX_PER_RUN = 500;
 
-  if (fetchErr) {
-    console.error(`[effectiveness] fetch error: ${fetchErr.message}`);
-    const elapsed = (Date.now() - phaseStart) / 1000;
-    return { backfilled: 0, error_count: 1, elapsed_seconds: parseFloat(elapsed.toFixed(1)) };
+  for (let i = 0; i < caseIds.length && eligibleActions.length < MAX_PER_RUN; i += IN_CHUNK_SIZE) {
+    const chunk = caseIds.slice(i, i + IN_CHUNK_SIZE);
+    const { data: rows, error: fetchErr } = await supabase
+      .from("actions")
+      .select("id, student_id")
+      .eq("status", "completed")
+      .not("attendance_rate_before", "is", null)
+      .is("attendance_rate_after_30d", null)
+      .lte("completed_at", cutoffStr)
+      .in("compliance_case_id", chunk)
+      .limit(MAX_PER_RUN - eligibleActions.length);
+
+    if (fetchErr) {
+      console.error(`[effectiveness] fetch error: ${fetchErr.message}`);
+      const elapsed = (Date.now() - phaseStart) / 1000;
+      return {
+        backfilled: 0,
+        error_count: 1,
+        elapsed_seconds: parseFloat(elapsed.toFixed(1)),
+      };
+    }
+    if (rows?.length) eligibleActions.push(...rows);
   }
 
-  if (!eligibleActions || eligibleActions.length === 0) {
+  if (eligibleActions.length === 0) {
     const elapsed = (Date.now() - phaseStart) / 1000;
     console.log(`[effectiveness] no actions to backfill in ${elapsed.toFixed(1)}s`);
     return { backfilled: 0, error_count: 0, elapsed_seconds: parseFloat(elapsed.toFixed(1)) };
@@ -1376,6 +1709,34 @@ serve(async (req: Request) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  if (req.method !== "POST") {
+    return jsonError(405, "Method not allowed");
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error("run-all-engines: missing SUPABASE_URL or SUPABASE_ANON_KEY");
+    return jsonError(500, "Server misconfiguration");
+  }
+
+  let body: Record<string, unknown> = {};
+  try {
+    const text = await req.text();
+    if (text.trim()) {
+      body = JSON.parse(text) as Record<string, unknown>;
+    }
+  } catch {
+    return jsonError(400, "Invalid JSON body");
+  }
+
+  const auth = await authorizeRunAllEngines(req, supabaseUrl, supabaseAnonKey, body);
+  if (!auth.ok) {
+    return auth.response;
+  }
+
+  const districtId = auth.districtId;
+
   const totalStart = Date.now();
 
   try {
@@ -1389,13 +1750,18 @@ serve(async (req: Request) => {
     const academicYear = getAcademicYear(now);
 
     console.log(
-      `run-all-engines: starting orchestration for ${academicYear} on ${today}`
+      `run-all-engines: starting orchestration for ${academicYear} on ${today} district=${districtId}`
     );
 
     // ---- Phase 1: Snapshots (must run first — other engines read from it) ----
     let snapshotsResult: SnapshotPhaseResult | { error: string };
     try {
-      snapshotsResult = await runSnapshots(supabase, academicYear, today);
+      snapshotsResult = await runSnapshots(
+        supabase,
+        academicYear,
+        today,
+        districtId,
+      );
     } catch (err) {
       console.error("[snapshots] FATAL:", err);
       snapshotsResult = { error: (err as Error).message };
@@ -1404,7 +1770,12 @@ serve(async (req: Request) => {
     // ---- Phase 2: Risk Signals (reads snapshots + attendance_daily) ----
     let riskSignalsResult: RiskSignalPhaseResult | { error: string };
     try {
-      riskSignalsResult = await runRiskSignals(supabase, academicYear, today);
+      riskSignalsResult = await runRiskSignals(
+        supabase,
+        academicYear,
+        today,
+        districtId,
+      );
     } catch (err) {
       console.error("[risk-signals] FATAL:", err);
       riskSignalsResult = { error: (err as Error).message };
@@ -1413,7 +1784,12 @@ serve(async (req: Request) => {
     // ---- Phase 3: Compliance (reads snapshots + compliance_cases) ----
     let complianceResult: CompliancePhaseResult | { error: string };
     try {
-      complianceResult = await runCompliance(supabase, academicYear, today);
+      complianceResult = await runCompliance(
+        supabase,
+        academicYear,
+        today,
+        districtId,
+      );
     } catch (err) {
       console.error("[compliance] FATAL:", err);
       complianceResult = { error: (err as Error).message };
@@ -1422,7 +1798,7 @@ serve(async (req: Request) => {
     // ---- Phase 4: Actions (reads compliance_cases + existing actions) ----
     let actionsResult: ActionPhaseResult | { error: string };
     try {
-      actionsResult = await runActions(supabase, today);
+      actionsResult = await runActions(supabase, today, districtId);
     } catch (err) {
       console.error("[actions] FATAL:", err);
       actionsResult = { error: (err as Error).message };
@@ -1431,7 +1807,12 @@ serve(async (req: Request) => {
     // ---- Phase 5: Funding (reads snapshots + calendar → funding_projections) ----
     let fundingResult: FundingPhaseResult | { error: string };
     try {
-      fundingResult = await runFunding(supabase, academicYear, today);
+      fundingResult = await runFunding(
+        supabase,
+        academicYear,
+        today,
+        districtId,
+      );
     } catch (err) {
       console.error("[funding] FATAL:", err);
       fundingResult = { error: (err as Error).message };
@@ -1440,7 +1821,11 @@ serve(async (req: Request) => {
     // ---- Phase 6: Effectiveness Backfill (reads risk_signals → updates actions) ----
     let effectivenessResult: EffectivenessPhaseResult | { error: string };
     try {
-      effectivenessResult = await runEffectivenessBackfill(supabase, today);
+      effectivenessResult = await runEffectivenessBackfill(
+        supabase,
+        today,
+        districtId,
+      );
     } catch (err) {
       console.error("[effectiveness] FATAL:", err);
       effectivenessResult = { error: (err as Error).message };
@@ -1458,6 +1843,7 @@ serve(async (req: Request) => {
       JSON.stringify({
         academic_year: academicYear,
         date: today,
+        district_id: districtId,
         snapshots: snapshotsResult,
         risk_signals: riskSignalsResult,
         compliance: complianceResult,

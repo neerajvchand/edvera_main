@@ -3,6 +3,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { signOut } from "@/services/auth";
 import { useSession } from "@/hooks/useSession";
+import { usePermission } from "@/hooks/usePermission";
 import {
   LayoutDashboard,
   Users,
@@ -33,7 +34,10 @@ const NAV_ITEMS = [
 export function ConsoleLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const { user } = useSession();
+  const { canAccessRoute } = usePermission();
   const navigate = useNavigate();
+
+  const mainNavItems = NAV_ITEMS.filter((item) => canAccessRoute(item.to));
 
   const handleSignOut = async () => {
     await signOut();
@@ -66,7 +70,7 @@ export function ConsoleLayout() {
 
         {/* Nav */}
         <nav className="flex-1 py-3 px-2 space-y-0.5">
-          {NAV_ITEMS.map((item) => (
+          {mainNavItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -101,28 +105,32 @@ export function ConsoleLayout() {
             )}
           </button>
 
-          <NavLink
-            to="/settings"
-            className={({ isActive }) =>
-              cn(
-                "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-                isActive
-                  ? "bg-emerald-100 text-emerald-700"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              )
-            }
-          >
-            <Settings className="h-[18px] w-[18px] shrink-0" />
-            {!collapsed && <span>Settings</span>}
-          </NavLink>
+          {canAccessRoute("/settings") && (
+            <NavLink
+              to="/settings"
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                  isActive
+                    ? "bg-emerald-100 text-emerald-700"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                )
+              }
+            >
+              <Settings className="h-[18px] w-[18px] shrink-0" />
+              {!collapsed && <span>Settings</span>}
+            </NavLink>
+          )}
 
-          <NavLink
-            to="/security"
-            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
-          >
-            <Shield className="h-[18px] w-[18px] shrink-0" />
-            {!collapsed && <span>Security</span>}
-          </NavLink>
+          {canAccessRoute("/security") && (
+            <NavLink
+              to="/security"
+              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+            >
+              <Shield className="h-[18px] w-[18px] shrink-0" />
+              {!collapsed && <span>Security</span>}
+            </NavLink>
+          )}
 
           <div className="flex items-center gap-3 px-3 py-2">
             <div className="h-7 w-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-semibold shrink-0">

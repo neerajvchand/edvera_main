@@ -1,10 +1,9 @@
 /**
- * Agent brief service — fetches the daily brief from the Python agent API.
- *
- * The agent API lives at VITE_AGENT_URL and requires VITE_AGENT_API_KEY.
- * Both are optional; if missing the service returns null so the UI
- * can gracefully hide the panel.
+ * Agent brief service — fetches the daily brief via the agent-daily-brief
+ * Edge Function (JWT + staff membership on the server, agent API key never
+ * exposed to the browser).
  */
+import { supabase } from "@/lib/supabase";
 import { handleServiceError } from "@/services/serviceError";
 
 /* ------------------------------------------------------------------ */
@@ -64,58 +63,33 @@ export interface AgentBriefResponse {
 }
 
 /* ------------------------------------------------------------------ */
-/* Config                                                              */
-/* ------------------------------------------------------------------ */
-
-function getAgentConfig(): { url: string; apiKey: string } | null {
-  const url = import.meta.env.VITE_AGENT_URL;
-  const apiKey = import.meta.env.VITE_AGENT_API_KEY;
-  if (!url || !apiKey) return null;
-  return { url: url.replace(/\/+$/, ""), apiKey };
-}
-
-/* ------------------------------------------------------------------ */
 /* Public API                                                          */
 /* ------------------------------------------------------------------ */
 
 /**
- * Fetch a daily brief for a school from the agent API.
- * Returns null if the agent is not configured.
+ * Fetch a daily brief for a school through the secure Edge proxy.
+ * `district_id` is derived server-side from staff membership and the school record.
  */
-export async function getAgentBrief(
-  userId: string,
-  districtId: string,
-  schoolId: string,
-): Promise<AgentBrief | null> {
-  const config = getAgentConfig();
-  if (!config) return null;
-
+export async function getAgentBrief(schoolId: string): Promise<AgentBrief> {
   try {
-    const res = await fetch(`${config.url}/agent/daily-brief`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Api-Key": config.apiKey,
-      },
-      body: JSON.stringify({
-        user_id: userId,
-        district_id: districtId,
-        school_id: schoolId,
-      }),
-    });
+    const { data, error } = await supabase.functions.invoke<AgentBriefResponse>(
+      "agent-daily-brief",
+      { method: "POST", body: { school_id: schoolId } },
+    );
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      throw new Error(`Agent API ${res.status}: ${text}`);
+    if (error) {
+      throw error;
     }
 
-    const body: AgentBriefResponse = await res.json();
-
-    if (!body.success) {
-      throw new Error(body.error ?? "Agent returned unsuccessful response");
+    if (!data || typeof data !== "object") {
+      throw new Error("Empty response from agent proxy");
     }
 
-    return body.data;
+    if (!data.success) {
+      throw new Error(data.error ?? "Agent returned unsuccessful response");
+    }
+
+    return data.data;
   } catch (err) {
     throw handleServiceError("fetch agent brief", err);
   }

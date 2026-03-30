@@ -1,11 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSession } from "@/hooks/useSession";
+import { useMembership } from "@/context/MembershipContext";
 import { Save, Check, Loader2, Building2, Shield, Bell } from "lucide-react";
-import { getSchool } from "@/services/schools/getSchool";
 import { getDistrict } from "@/services/schools/getDistrict";
 import { getCountyOffice } from "@/services/schools/getCountyOffice";
 import { getProfile, type ProfileRecord } from "@/services/profiles/getProfile";
-import { getStaffMembership } from "@/services/profiles/getStaffMembership";
 import { updateProfileDisplayName } from "@/services/profiles/updateProfile";
 import type { DistrictRecord, CountyOfficeRecord } from "@/types/organization";
 
@@ -83,6 +82,7 @@ function FieldRow({
 
 export function SettingsPage() {
   const { user } = useSession();
+  const { districtId } = useMembership();
 
   /* State */
   const [profile, setProfile] = useState<ProfileRecord | null>(null);
@@ -107,29 +107,24 @@ export function SettingsPage() {
       setDisplayName(profileRow.display_name ?? "");
     }
 
-    // 2. District — via staff_memberships → school service → district service
-    const membership = await getStaffMembership(user.id).catch(() => null);
+    // 2. District — from membership context (staff_memberships → schools.district_id)
+    if (districtId) {
+      const districtRow = await getDistrict(districtId).catch(() => null);
 
-    if (membership?.school_id) {
-      const school = await getSchool(membership.school_id).catch(() => null);
+      if (districtRow) {
+        setDistrict(districtRow);
 
-      if (school?.district_id) {
-        const districtRow = await getDistrict(school.district_id).catch(() => null);
-
-        if (districtRow) {
-          setDistrict(districtRow);
-
-          // 3. County office
-          if (districtRow.county_office_id) {
-            const coRow = await getCountyOffice(districtRow.county_office_id).catch(() => null);
-            if (coRow) setCountyOffice(coRow);
-          }
+        if (districtRow.county_office_id) {
+          const coRow = await getCountyOffice(districtRow.county_office_id).catch(
+            () => null,
+          );
+          if (coRow) setCountyOffice(coRow);
         }
       }
     }
 
     setLoading(false);
-  }, [user]);
+  }, [user, districtId]);
 
   useEffect(() => {
     fetchData();
