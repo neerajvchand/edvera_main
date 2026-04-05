@@ -6,6 +6,7 @@ import {
   SORT_OPTIONS,
   type SchoolOption,
 } from "./actionCenterConstants";
+import { CARD } from "@/lib/designTokens";
 
 interface ActionFilterBarProps {
   searchQuery: string;
@@ -41,7 +42,7 @@ export function ActionFilterBar({
   onReset,
 }: ActionFilterBarProps) {
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 mb-6">
+    <div className={`${CARD} p-4 mb-6`}>
       <div className="flex flex-wrap items-center gap-3">
         {/* Search */}
         <div className="relative flex-1 min-w-[200px] max-w-xs">
@@ -51,7 +52,7 @@ export function ActionFilterBar({
             placeholder="Search student or action..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+            className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
           />
         </div>
 
@@ -64,7 +65,7 @@ export function ActionFilterBar({
               className={cn(
                 "px-3 py-1.5 rounded-full text-xs font-medium transition-colors",
                 statusFilter === f.value
-                  ? "bg-emerald-100 text-emerald-700"
+                  ? "bg-blue-50 text-blue-800 font-semibold"
                   : "bg-gray-100 text-gray-600 hover:bg-gray-200"
               )}
             >
@@ -78,7 +79,7 @@ export function ActionFilterBar({
           <select
             value={typeFilter}
             onChange={(e) => onTypeChange(e.target.value)}
-            className="appearance-none bg-gray-100 text-xs font-medium text-gray-600 rounded-full pl-3 pr-7 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer hover:bg-gray-200 transition-colors"
+            className="appearance-none bg-gray-100 text-xs font-medium text-gray-600 rounded-full pl-3 pr-7 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer hover:bg-gray-200 transition-colors"
           >
             {TYPE_FILTERS.map((f) => (
               <option key={f.value} value={f.value}>
@@ -94,7 +95,7 @@ export function ActionFilterBar({
           <select
             value={schoolFilter}
             onChange={(e) => onSchoolChange(e.target.value)}
-            className="appearance-none bg-gray-100 text-xs font-medium text-gray-600 rounded-full pl-3 pr-7 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer hover:bg-gray-200 transition-colors"
+            className="appearance-none bg-gray-100 text-xs font-medium text-gray-600 rounded-full pl-3 pr-7 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer hover:bg-gray-200 transition-colors"
           >
             <option value="all">All Schools</option>
             {schools.map((s) => (
@@ -111,7 +112,7 @@ export function ActionFilterBar({
           <select
             value={sortBy}
             onChange={(e) => onSortChange(e.target.value)}
-            className="appearance-none bg-gray-100 text-xs font-medium text-gray-600 rounded-full pl-3 pr-7 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer hover:bg-gray-200 transition-colors"
+            className="appearance-none bg-gray-100 text-xs font-medium text-gray-600 rounded-full pl-3 pr-7 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer hover:bg-gray-200 transition-colors"
           >
             {SORT_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -132,7 +133,7 @@ export function ActionFilterBar({
           </span>
           <button
             onClick={onReset}
-            className="text-xs text-emerald-600 hover:text-emerald-700 font-medium"
+            className="text-xs text-brand-500 hover:text-brand-600 font-medium"
           >
             Reset filters
           </button>

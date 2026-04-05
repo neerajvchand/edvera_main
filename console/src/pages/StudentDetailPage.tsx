@@ -9,11 +9,12 @@ import { StudentAttendanceTrend } from "@/components/student-detail/StudentAtten
 import { StudentComplianceCases } from "@/components/student-detail/StudentComplianceCases";
 import { StudentHistoryTimeline } from "@/components/student-detail/StudentHistoryTimeline";
 import { StudentFundingImpact } from "@/components/student-detail/StudentFundingImpact";
+import { CARD, CONTENT_PADDING, CASE_DETAIL } from "@/lib/designTokens";
 
 function SkeletonBlock({ className }: { className?: string }) {
   return (
-    <div className={cn("bg-white rounded-xl border border-gray-100 shadow-sm animate-pulse", className)}>
-      <div className="p-6 space-y-3">
+    <div className={cn(`${CARD} animate-pulse`, className)}>
+      <div className="p-5 space-y-3">
         <div className="h-4 bg-slate-100 rounded w-1/3" />
         <div className="h-3 bg-slate-100 rounded w-2/3" />
         <div className="h-3 bg-slate-100 rounded w-1/2" />
@@ -28,17 +29,17 @@ export function StudentDetailPage() {
 
   if (!data.headerLoading && !data.student) {
     return (
-      <div className="p-8">
+      <div className={CONTENT_PADDING}>
         <Link to="/students" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 mb-6">
           <ArrowLeft className="h-4 w-4" /> Back to Students
         </Link>
-        <p className="text-sm text-gray-500">Student not found.</p>
+        <p className={CASE_DETAIL}>Student not found.</p>
       </div>
     );
   }
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className={`${CONTENT_PADDING} max-w-5xl`}>
       <Link to="/students" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 mb-6">
         <ArrowLeft className="h-4 w-4" /> Back to Students
       </Link>

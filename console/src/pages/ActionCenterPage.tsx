@@ -5,6 +5,14 @@ import { useActionCenter } from "@/hooks/useActionCenter";
 import { ActionCard } from "@/components/action-center/ActionCard";
 import { ActionFilterBar } from "@/components/action-center/ActionFilterBar";
 import { PaginationControls } from "@/components/shared/PaginationControls";
+import {
+  CARD,
+  METRIC_LABEL,
+  METRIC_VALUE,
+  CASE_DETAIL,
+  PAGE_TITLE,
+  CONTENT_PADDING,
+} from "@/lib/designTokens";
 
 /* ------------------------------------------------------------------ */
 /* Metric Card                                                         */
@@ -22,12 +30,12 @@ function MetricCard({
   tooltip?: string;
 }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-      <p className="text-[13px] font-medium text-gray-500 flex items-center">
+    <div className={`${CARD} p-5`}>
+      <p className={`${METRIC_LABEL} flex items-center`}>
         {label}
         {tooltip && <InfoTooltip text={tooltip} />}
       </p>
-      <p className="text-[28px] font-semibold text-gray-900 mt-1 leading-tight">
+      <p className={`${METRIC_VALUE} text-gray-900 mt-1`}>
         {value}
       </p>
       {pill && (
@@ -58,7 +66,7 @@ function EmptyState({ hasFilters }: { hasFilters: boolean }) {
       <h3 className="text-base font-semibold text-gray-900 mb-1">
         {hasFilters ? "No actions match your filters" : "All caught up!"}
       </h3>
-      <p className="text-sm text-gray-500 max-w-sm">
+      <p className={CASE_DETAIL}>
         {hasFilters
           ? "Try adjusting your filters to see more actions."
           : "There are no open actions right now. New actions will appear automatically when the compliance engine detects threshold crossings."}
@@ -77,19 +85,17 @@ export function ActionCenterPage() {
   if (ac.loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-6 w-6 border-2 border-emerald-600 border-t-transparent" />
+        <div className="animate-spin rounded-full h-6 w-6 border-2 border-brand-500 border-t-transparent" />
       </div>
     );
   }
 
   return (
-    <div className="p-8 max-w-6xl">
+    <div className={`${CONTENT_PADDING} max-w-6xl`}>
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-[28px] font-semibold text-gray-900">
-          Action Center
-        </h1>
-        <p className="text-sm text-gray-500 mt-0.5">
+        <h1 className={PAGE_TITLE}>Action Center</h1>
+        <p className={`${CASE_DETAIL} mt-0.5`}>
           Tasks generated from compliance engine threshold crossings
         </p>
       </div>
@@ -168,7 +174,7 @@ export function ActionCenterPage() {
 
           {/* Pagination */}
           {ac.totalPages > 1 && (
-            <div className="mt-4 bg-white rounded-xl border border-gray-100 shadow-sm">
+            <div className={`mt-4 ${CARD}`}>
               <PaginationControls
                 page={ac.page}
                 totalPages={ac.totalPages}

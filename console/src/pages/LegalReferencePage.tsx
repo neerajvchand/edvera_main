@@ -15,6 +15,7 @@ import {
   FILTER_CATEGORIES,
   type ECSection,
 } from "@/data/educationCodeSections";
+import { CARD, PAGE_TITLE, CASE_DETAIL, CONTENT_PADDING } from "@/lib/designTokens";
 
 /* ------------------------------------------------------------------ */
 /* Disclaimer Banner                                                   */
@@ -22,14 +23,14 @@ import {
 
 function DisclaimerBanner() {
   return (
-    <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 mb-6">
+    <div className="bg-amber-50 border border-amber-200 rounded-lg px-5 py-4 mb-6">
       <div className="flex items-start gap-3">
         <Info className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
         <div>
-          <p className="text-sm font-medium text-amber-800">
+          <p className="text-[13px] font-medium text-amber-800">
             Legal Reference Only
           </p>
-          <p className="text-sm text-amber-700 mt-1">
+          <p className="text-[13px] text-amber-700 mt-1">
             This page provides Education Code text for reference purposes only.
             Statutes are current as of each section's noted effective date. This
             is not legal advice. Always consult the{" "}
@@ -68,7 +69,7 @@ function SearchBar({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Search by section number, title, or keyword…"
-        className="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
+        className="w-full pl-10 pr-4 py-2.5 text-[13px] border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-colors"
       />
     </div>
   );
@@ -94,7 +95,7 @@ function FilterPills({
           className={cn(
             "px-3 py-1.5 rounded-full text-xs font-medium transition-colors",
             active === cat.value
-              ? "bg-emerald-100 text-emerald-700"
+              ? "bg-blue-50 text-blue-800 font-semibold"
               : "bg-gray-100 text-gray-600 hover:bg-gray-200"
           )}
         >
@@ -150,7 +151,7 @@ function SectionCard({
   return (
     <div
       id={`section-${section.section}`}
-      className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden"
+      className={`${CARD} overflow-hidden`}
     >
       {/* Header — always visible */}
       <button
@@ -166,17 +167,17 @@ function SectionCard({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-sm font-semibold text-emerald-700">
+            <span className="text-[13px] font-semibold text-brand-500">
               {section.citation}
             </span>
             <span className="text-xs text-gray-400">
               {section.effectiveDate}
             </span>
           </div>
-          <h3 className="text-sm font-semibold text-gray-900 mb-1">
+          <h3 className="text-[13px] font-semibold text-gray-900 mb-1">
             {highlightMatch(section.title, searchQuery)}
           </h3>
-          <p className="text-sm text-gray-500 leading-relaxed">
+          <p className={`${CASE_DETAIL} leading-relaxed`}>
             {highlightMatch(section.summary, searchQuery)}
           </p>
         </div>
@@ -190,7 +191,7 @@ function SectionCard({
             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
               Full Statutory Text
             </h4>
-            <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap font-mono bg-white rounded-lg border border-gray-200 p-4 max-h-96 overflow-y-auto">
+            <div className="text-[13px] text-gray-700 leading-relaxed whitespace-pre-wrap font-mono bg-white rounded-lg border border-gray-200 p-4 max-h-96 overflow-y-auto">
               {section.fullText}
             </div>
           </div>
@@ -206,7 +207,7 @@ function SectionCard({
                   {section.usedIn.map((u) => (
                     <span
                       key={u}
-                      className="text-[10px] font-medium bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full"
+                      className="text-[10px] font-medium bg-blue-50 text-blue-800 px-2 py-0.5 rounded-full"
                     >
                       {u}
                     </span>
@@ -335,7 +336,7 @@ export function LegalReferencePage() {
   }, [activeFilter, searchQuery]);
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-6">
+    <div className={`max-w-4xl mx-auto ${CONTENT_PADDING}`}>
       {/* Page header */}
       <div className="mb-6">
         <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
@@ -345,10 +346,10 @@ export function LegalReferencePage() {
           <span>/</span>
           <span className="text-gray-600">Legal Reference</span>
         </div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">
+        <h1 className={`${PAGE_TITLE} mb-1`}>
           Education Code Reference
         </h1>
-        <p className="text-sm text-gray-500">
+        <p className={CASE_DETAIL}>
           California Education Code sections relevant to attendance, truancy,
           and SARB compliance.
         </p>
@@ -373,7 +374,7 @@ export function LegalReferencePage() {
               setSearchQuery("");
               setActiveFilter("all");
             }}
-            className="text-xs text-emerald-600 hover:text-emerald-700 font-medium transition-colors"
+            className="text-xs text-brand-500 hover:text-brand-600 font-medium transition-colors"
           >
             Clear filters
           </button>
@@ -395,7 +396,7 @@ export function LegalReferencePage() {
         {filteredSections.length === 0 && (
           <div className="text-center py-16">
             <Search className="h-8 w-8 text-gray-300 mx-auto mb-3" />
-            <p className="text-sm font-medium text-gray-500">
+            <p className="text-[13px] font-medium text-gray-500">
               No sections match your search
             </p>
             <p className="text-xs text-gray-400 mt-1">

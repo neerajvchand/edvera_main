@@ -179,7 +179,7 @@ export function NeedsAttentionQueue({
 
       {/* Column headers */}
       {rows.length > 0 && (
-        <div className="grid grid-cols-[1fr_70px_1fr_100px_120px] gap-2 px-4 mb-1.5">
+        <div className="grid grid-cols-[1fr_70px_1fr_100px_120px] gap-3 px-4 mb-1.5">
           <span className={TABLE_HEADER}>Student</span>
           <span className={TABLE_HEADER}>Tier</span>
           <span className={TABLE_HEADER}>Next action</span>
@@ -197,7 +197,7 @@ export function NeedsAttentionQueue({
               key={row.id}
               onClick={() => handleRowClick(row)}
               className={cn(
-                `${CARD} grid grid-cols-[1fr_70px_1fr_100px_120px] gap-2 items-center py-[14px] px-4 cursor-pointer transition-colors`,
+                `${CARD} grid grid-cols-[1fr_70px_1fr_100px_120px] gap-3 items-center py-[14px] px-4 cursor-pointer transition-colors`,
                 isSelected
                   ? "bg-blue-50 border-l-2 border-l-[#1c3f7a] rounded-l-none"
                   : "hover:bg-gray-50/60",
@@ -231,14 +231,14 @@ export function NeedsAttentionQueue({
               </div>
 
               {/* Next action */}
-              <span className="text-[12px] text-gray-500 truncate">
+              <span className="text-[clamp(12px,0.9vw,14px)] text-gray-500 truncate">
                 {row.nextAction}
               </span>
 
               {/* Deadline */}
               <span
                 className={cn(
-                  "text-[12px]",
+                  "text-[clamp(12px,0.9vw,14px)]",
                   DEADLINE_COLOR[row.deadlineType] ?? DEADLINE_COLOR.ok,
                 )}
               >

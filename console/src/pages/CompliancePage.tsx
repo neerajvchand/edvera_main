@@ -18,6 +18,14 @@ import {
 import { SearchInput } from "@/components/shared/SearchInput";
 import { SchoolFilter } from "@/components/shared/SchoolFilter";
 import { PaginationControls } from "@/components/shared/PaginationControls";
+import {
+  CARD,
+  TABLE_HEADER,
+  CASE_NAME,
+  CASE_DETAIL,
+  PAGE_TITLE,
+  CONTENT_PADDING,
+} from "@/lib/designTokens";
 
 /* ------------------------------------------------------------------ */
 /* Tier helpers (kept for table badge rendering)                       */
@@ -115,13 +123,13 @@ const QUEUES = [
 /* ------------------------------------------------------------------ */
 
 const PILL_ACTIVE: Record<string, string> = {
-  gray: "bg-gray-50 border-gray-200 text-gray-700",
-  red: "bg-red-50 border-red-200 text-red-700",
-  amber: "bg-amber-50 border-amber-200 text-amber-700",
-  orange: "bg-orange-50 border-orange-200 text-orange-700",
-  blue: "bg-blue-50 border-blue-200 text-blue-700",
-  emerald: "bg-emerald-50 border-emerald-200 text-emerald-700",
-  purple: "bg-purple-50 border-purple-200 text-purple-700",
+  gray: "bg-blue-50 border-blue-200 text-blue-800 font-semibold",
+  red: "bg-blue-50 border-blue-200 text-blue-800 font-semibold",
+  amber: "bg-blue-50 border-blue-200 text-blue-800 font-semibold",
+  orange: "bg-blue-50 border-blue-200 text-blue-800 font-semibold",
+  blue: "bg-blue-50 border-blue-200 text-blue-800 font-semibold",
+  emerald: "bg-blue-50 border-blue-200 text-blue-800 font-semibold",
+  purple: "bg-blue-50 border-blue-200 text-blue-800 font-semibold",
 };
 
 const BADGE_BG: Record<string, string> = {
@@ -235,12 +243,10 @@ export function CompliancePage() {
   }
 
   return (
-    <div className="p-8 max-w-6xl">
+    <div className={`${CONTENT_PADDING} max-w-6xl`}>
       <div className="mb-6">
-        <h1 className="text-[28px] font-semibold text-gray-900">
-          Compliance Tracker
-        </h1>
-        <p className="text-sm text-gray-500 mt-0.5">
+        <h1 className={PAGE_TITLE}>Compliance Tracker</h1>
+        <p className={`${CASE_DETAIL} mt-0.5`}>
           {activeQueue === "all"
             ? `${total} open case${total !== 1 ? "s" : ""}`
             : `Showing ${totalFiltered} of ${total} \u2014 ${activeQueueDef.label}`}
@@ -259,7 +265,7 @@ export function CompliancePage() {
           <select
             value={tierFilter}
             onChange={(e) => setTierFilter(e.target.value)}
-            className="appearance-none bg-white border border-gray-200 rounded-lg pl-3 pr-8 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            className="appearance-none bg-white border border-gray-200 rounded-lg pl-3 pr-8 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
           >
             <option value="all">All Tiers</option>
             <option value="tier_1_letter">Tier 1</option>
@@ -284,11 +290,11 @@ export function CompliancePage() {
                   setPage(1);
                 }}
                 className={cn(
-                  "flex items-center gap-2.5 px-4 py-2.5 rounded-xl border",
-                  "text-sm font-medium transition-colors whitespace-nowrap",
+                  "flex items-center gap-2.5 px-4 py-2.5 rounded-lg border",
+                  "text-sm transition-colors whitespace-nowrap",
                   isActive
                     ? PILL_ACTIVE[queue.color]
-                    : "bg-white border-gray-100 text-gray-600 hover:bg-gray-50"
+                    : "bg-white border-gray-200 text-gray-500 font-medium hover:bg-gray-50"
                 )}
               >
                 <span
@@ -310,20 +316,20 @@ export function CompliancePage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-clip overflow-y-visible">
+      <div className={`${CARD} overflow-x-clip overflow-y-visible`}>
         {loading ? (
           <div className="flex items-center justify-center h-48">
-            <div className="animate-spin rounded-full h-6 w-6 border-2 border-emerald-600 border-t-transparent" />
+            <div className="animate-spin rounded-full h-6 w-6 border-2 border-brand-500 border-t-transparent" />
           </div>
         ) : visibleCases.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16">
             <CheckCircle2 className="h-8 w-8 text-emerald-500 mb-3" />
-            <p className="text-sm font-medium text-gray-900 mb-1">
+            <p className={`${CASE_NAME} mb-1`}>
               {search || schoolId
                 ? "No cases match your search"
                 : "No cases in this queue"}
             </p>
-            <p className="text-xs text-gray-500">
+            <p className={CASE_DETAIL}>
               {activeQueueDef.description}
             </p>
           </div>
@@ -332,31 +338,31 @@ export function CompliancePage() {
             <table className="w-full">
               <thead>
                 <tr className="bg-gray-50 text-left">
-                  <th className="py-2.5 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tl-xl">
+                  <th className={`py-2.5 px-4 ${TABLE_HEADER} rounded-tl-lg`}>
                     Student
                   </th>
-                  <th className="py-2.5 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className={`py-2.5 px-4 ${TABLE_HEADER}`}>
                     School
                   </th>
-                  <th className="py-2.5 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className={`py-2.5 px-4 ${TABLE_HEADER}`}>
                     Tier
                   </th>
-                  <th className="py-2.5 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className={`py-2.5 px-4 ${TABLE_HEADER}`}>
                     Stage
                   </th>
-                  <th className="py-2.5 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className={`py-2.5 px-4 ${TABLE_HEADER}`}>
                     <span className="inline-flex items-center">
                       Unexcused
                       <InfoTooltip text="Count of unexcused absences only. California truancy law (EC §48260) tracks unexcused absences separately from total absences." />
                     </span>
                   </th>
-                  <th className="py-2.5 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className={`py-2.5 px-4 ${TABLE_HEADER}`}>
                     <span className="inline-flex items-center">
                       Total Absences
                       <InfoTooltip text="All absences including excused, unexcused, and suspensions. Chronic absence (EC §60901) counts all types." />
                     </span>
                   </th>
-                  <th className="py-2.5 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tr-xl" />
+                  <th className={`py-2.5 px-4 ${TABLE_HEADER} rounded-tr-lg`} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -375,13 +381,13 @@ export function CompliancePage() {
                   return (
                     <tr
                       key={c.id}
-                      className="hover:bg-emerald-50/50 transition-colors"
+                      className="hover:bg-gray-50 transition-colors"
                     >
                       {/* Student + SLA */}
                       <td className="py-3 px-4">
                         <Link
                           to={`/student/${c.student_id}`}
-                          className="text-sm font-medium text-gray-900 hover:text-emerald-700"
+                          className={`${CASE_NAME} hover:text-brand-500`}
                         >
                           {c.student_name}
                         </Link>
@@ -393,7 +399,7 @@ export function CompliancePage() {
                       </td>
 
                       {/* School */}
-                      <td className="py-3 px-4 text-sm text-gray-700">
+                      <td className={`py-3 px-4 ${CASE_DETAIL}`}>
                         {c.school_name}
                       </td>
 
@@ -464,12 +470,12 @@ export function CompliancePage() {
                       </td>
 
                       {/* Unexcused */}
-                      <td className="py-3 px-4 text-sm text-gray-700 tabular-nums">
+                      <td className={`py-3 px-4 ${CASE_DETAIL} tabular-nums`}>
                         {c.unexcused_absence_count}
                       </td>
 
                       {/* Total Absences */}
-                      <td className="py-3 px-4 text-sm text-gray-700 tabular-nums">
+                      <td className={`py-3 px-4 ${CASE_DETAIL} tabular-nums`}>
                         {c.total_absence_count}
                       </td>
 
@@ -477,7 +483,7 @@ export function CompliancePage() {
                       <td className="py-3 px-4">
                         <Link
                           to={`/compliance/cases/${c.id}`}
-                          className="text-xs font-medium text-emerald-600 hover:text-emerald-800"
+                          className="text-xs font-semibold text-brand-500 hover:text-brand-600"
                         >
                           View Case
                         </Link>

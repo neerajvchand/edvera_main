@@ -33,13 +33,13 @@ export function BottomPanels({
           Cases by school
         </h3>
         {schools.length === 0 ? (
-          <p className="text-[11px] text-gray-400">No school data.</p>
+          <p className="text-[clamp(11px,0.85vw,13px)] text-gray-400">No school data.</p>
         ) : (
           <div className="divide-y divide-gray-100">
             {schools.map((school) => (
               <div
                 key={school.name}
-                className="flex justify-between py-1.5 text-[11px]"
+                className="flex justify-between py-1.5 text-[clamp(12px,0.9vw,14px)]"
               >
                 <span className="text-gray-500">{school.name}</span>
                 <span className="font-medium text-gray-900">
@@ -59,13 +59,13 @@ export function BottomPanels({
           Audit trail
         </h3>
         {auditTrail.length === 0 ? (
-          <p className="text-[11px] text-gray-400">No recent activity.</p>
+          <p className="text-[clamp(11px,0.85vw,13px)] text-gray-400">No recent activity.</p>
         ) : (
           <div className="space-y-1">
             {auditTrail.map((entry, i) => (
               <div key={i} className="flex items-start gap-2 py-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 shrink-0" />
-                <span className="text-[11px] text-gray-500 flex-1">
+                <span className="text-[clamp(12px,0.9vw,14px)] text-gray-500 flex-1">
                   {entry.text}
                 </span>
                 <span className="text-[10px] text-gray-300 shrink-0 whitespace-nowrap">

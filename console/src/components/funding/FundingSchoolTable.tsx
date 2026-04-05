@@ -41,7 +41,7 @@ export function FundingSchoolTable({ schools }: { schools: SchoolFunding[] }) {
           {schools.map((s) => (
             <tr
               key={s.school_name}
-              className="hover:bg-emerald-50/50 transition-colors"
+              className="hover:bg-gray-50 transition-colors"
             >
               <td className="py-3 px-4 text-sm font-medium text-gray-900">
                 {s.school_name}

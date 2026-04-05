@@ -14,6 +14,7 @@ import {
   formatDate,
   type ActionRow,
 } from "./actionCenterConstants";
+import { CARD, CASE_NAME, CASE_DETAIL } from "@/lib/designTokens";
 
 export function ActionCard({ action }: { action: ActionRow }) {
   const priority = PRIORITY_CONFIG[action.priority] ?? PRIORITY_CONFIG.normal;
@@ -25,7 +26,7 @@ export function ActionCard({ action }: { action: ActionRow }) {
   return (
     <div
       className={cn(
-        "bg-white rounded-xl border border-gray-100 shadow-sm border-l-4 transition-all duration-200 hover:shadow-md",
+        `${CARD} border-l-4 transition-all duration-200 hover:shadow-md`,
         isCompleted
           ? "border-l-emerald-400 opacity-75"
           : isDeferred
@@ -52,10 +53,8 @@ export function ActionCard({ action }: { action: ActionRow }) {
             <div className="flex items-center gap-2 flex-wrap">
               <h3
                 className={cn(
-                  "text-sm font-medium",
-                  isCompleted
-                    ? "text-gray-500 line-through"
-                    : "text-gray-900"
+                  CASE_NAME,
+                  isCompleted && "!text-gray-500 line-through"
                 )}
               >
                 {action.title}
@@ -77,19 +76,19 @@ export function ActionCard({ action }: { action: ActionRow }) {
             <div className="flex items-center gap-2 mt-1">
               <Link
                 to={`/student/${action.student_id}`}
-                className="text-xs text-emerald-700 hover:text-emerald-800 font-medium"
+                className="text-xs text-brand-500 hover:text-brand-600 font-medium"
               >
                 {action.student_name}
               </Link>
               <span className="text-xs text-gray-400">&middot;</span>
-              <span className="text-xs text-gray-500">
+              <span className={CASE_DETAIL}>
                 {action.school_name}
               </span>
             </div>
 
             {/* Reason */}
             {action.reason && !isCompleted && (
-              <p className="text-xs text-gray-500 mt-1.5">{action.reason}</p>
+              <p className={`${CASE_DETAIL} mt-1.5`}>{action.reason}</p>
             )}
 
             {/* Completion info */}
@@ -128,7 +127,7 @@ export function ActionCard({ action }: { action: ActionRow }) {
             {action.compliance_case_id && (
               <Link
                 to={`/compliance/cases/${action.compliance_case_id}`}
-                className="text-xs text-emerald-600 hover:text-emerald-700 font-medium px-2.5 py-1 rounded-md hover:bg-emerald-50 transition-colors flex items-center gap-1"
+                className="text-xs text-brand-500 hover:text-brand-600 font-medium px-2.5 py-1 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-1"
               >
                 View Case
                 <ExternalLink className="h-3 w-3" />

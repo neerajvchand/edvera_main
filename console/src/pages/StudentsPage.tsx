@@ -10,6 +10,14 @@ import type { StudentListItem } from "@/types/student";
 import { SearchInput } from "@/components/shared/SearchInput";
 import { SchoolFilter } from "@/components/shared/SchoolFilter";
 import { PaginationControls } from "@/components/shared/PaginationControls";
+import {
+  CARD,
+  TABLE_HEADER,
+  CASE_NAME,
+  CASE_DETAIL,
+  PAGE_TITLE,
+  CONTENT_PADDING,
+} from "@/lib/designTokens";
 
 function signalPill(level: string | undefined | null) {
   switch (level) {
@@ -71,10 +79,10 @@ export function StudentsPage() {
   }
 
   return (
-    <div className="p-8 max-w-6xl">
+    <div className={`${CONTENT_PADDING} max-w-6xl`}>
       <div className="mb-6">
-        <h1 className="text-[28px] font-semibold text-gray-900">Students</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
+        <h1 className={PAGE_TITLE}>Students</h1>
+        <p className={`${CASE_DETAIL} mt-0.5`}>
           {total.toLocaleString()} active student{total !== 1 ? "s" : ""}
         </p>
       </div>
@@ -90,17 +98,17 @@ export function StudentsPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-clip overflow-y-visible">
+      <div className={`${CARD} overflow-x-clip overflow-y-visible`}>
         {loading ? (
           <div className="flex items-center justify-center h-48">
-            <div className="animate-spin rounded-full h-6 w-6 border-2 border-emerald-600 border-t-transparent" />
+            <div className="animate-spin rounded-full h-6 w-6 border-2 border-brand-500 border-t-transparent" />
           </div>
         ) : students.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <p className="text-sm font-medium text-gray-900 mb-1">
+            <p className={`${CASE_NAME} mb-1`}>
               No students found
             </p>
-            <p className="text-xs text-gray-500">
+            <p className={CASE_DETAIL}>
               {search || schoolId
                 ? "Try adjusting your search or filters."
                 : "Import attendance data to see students here."}
@@ -111,25 +119,25 @@ export function StudentsPage() {
             <table className="w-full">
               <thead>
                 <tr className="bg-gray-50 text-left">
-                  <th className="py-2.5 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tl-xl">
+                  <th className={`py-2.5 px-4 ${TABLE_HEADER} rounded-tl-lg`}>
                     Name
                   </th>
-                  <th className="py-2.5 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className={`py-2.5 px-4 ${TABLE_HEADER}`}>
                     Grade
                   </th>
-                  <th className="py-2.5 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className={`py-2.5 px-4 ${TABLE_HEADER}`}>
                     School
                   </th>
-                  <th className="py-2.5 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className={`py-2.5 px-4 ${TABLE_HEADER}`}>
                     <span className="inline-flex items-center">
                       Attendance
                       <InfoTooltip text="Attendance rate = (days present / days enrolled) x 100. Red values indicate the student is below the 90% chronic absence threshold." />
                     </span>
                   </th>
-                  <th className="py-2.5 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className={`py-2.5 px-4 ${TABLE_HEADER}`}>
                     Absences
                   </th>
-                  <th className="py-2.5 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tr-xl">
+                  <th className={`py-2.5 px-4 ${TABLE_HEADER} rounded-tr-lg`}>
                     <span className="inline-flex items-center">
                       Signal
                       <InfoTooltip text="Risk engine classification based on 30-day attendance trajectory. Stable = holding steady. Softening = declining trend. Elevated = crossed into higher-risk band or accelerating decline." />
@@ -143,30 +151,30 @@ export function StudentsPage() {
                   return (
                     <tr
                       key={s.id}
-                      className="hover:bg-emerald-50/50 transition-colors"
+                      className="hover:bg-gray-50 transition-colors"
                     >
                       <td className="py-3 px-4">
                         <Link
                           to={`/student/${s.id}`}
-                          className="text-sm font-medium text-gray-900 hover:text-emerald-700"
+                          className={`${CASE_NAME} hover:text-brand-500`}
                         >
                           {s.last_name}, {s.first_name}
                         </Link>
                       </td>
-                      <td className="py-3 px-4 text-sm text-gray-700">
+                      <td className={`py-3 px-4 ${CASE_DETAIL}`}>
                         {s.grade_level}
                       </td>
-                      <td className="py-3 px-4 text-sm text-gray-700">
+                      <td className={`py-3 px-4 ${CASE_DETAIL}`}>
                         {s.school_name ?? "\u2014"}
                       </td>
-                      <td className="py-3 px-4 text-sm tabular-nums">
+                      <td className="py-3 px-4 tabular-nums">
                         {s.attendance_rate != null ? (
                           <span
                             className={cn(
-                              "font-medium",
+                              CASE_NAME,
                               s.is_chronic_absent
-                                ? "text-red-600"
-                                : "text-gray-900"
+                                ? "!text-red-600"
+                                : ""
                             )}
                           >
                             {s.attendance_rate.toFixed(1)}%
@@ -175,13 +183,13 @@ export function StudentsPage() {
                           <span className="text-gray-400">{"\u2014"}</span>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-sm text-gray-700 tabular-nums">
+                      <td className={`py-3 px-4 ${CASE_DETAIL} tabular-nums`}>
                         {s.days_absent ?? "\u2014"}
                       </td>
                       <td className="py-3 px-4">
                         <span
                           className={cn(
-                            "inline-block text-xs font-medium px-2.5 py-0.5 rounded-full",
+                            "inline-block text-[clamp(11px,0.85vw,12px)] font-semibold px-2.5 py-1 rounded-full",
                             pill.bg,
                             pill.text
                           )}

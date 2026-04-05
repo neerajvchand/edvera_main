@@ -4,6 +4,14 @@ import { FundingSchoolTable } from "@/components/funding/FundingSchoolTable";
 import { RecoverySimulator } from "@/components/funding/RecoverySimulator";
 import { InterventionNarrativeBlock } from "@/components/funding/InterventionNarrativeBlock";
 import { ADALossTooltip } from "@/components/funding/ADALossTooltip";
+import {
+  CARD,
+  METRIC_LABEL,
+  METRIC_VALUE,
+  PAGE_TITLE,
+  CASE_DETAIL,
+  CONTENT_PADDING,
+} from "@/lib/designTokens";
 
 /* ------------------------------------------------------------------ */
 /* Funding Page                                                        */
@@ -15,7 +23,7 @@ export function FundingPage() {
   if (f.loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-6 w-6 border-2 border-emerald-600 border-t-transparent" />
+        <div className="animate-spin rounded-full h-6 w-6 border-2 border-brand-500 border-t-transparent" />
       </div>
     );
   }
@@ -33,25 +41,23 @@ export function FundingPage() {
   const fullRemainingLoss = Math.max(0, f.totalLoss - fullRecovery);
 
   return (
-    <div className="p-8 max-w-6xl">
+    <div className={`${CONTENT_PADDING} max-w-6xl`}>
       <div className="flex items-start justify-between mb-8">
         <div>
-          <h1 className="text-[28px] font-semibold text-gray-900">
-            Funding Impact
-          </h1>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <h1 className={PAGE_TITLE}>Funding Impact</h1>
+          <p className={`${CASE_DETAIL} mt-0.5`}>
             Projected ADA loss at ${f.dailyRate}/day per-pupil rate
           </p>
         </div>
       </div>
 
       {/* Total loss card */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-6">
-        <p className="text-[13px] font-medium text-gray-500 flex items-center">
+      <div className={`${CARD} p-5 mb-6`}>
+        <p className={`${METRIC_LABEL} flex items-center`}>
           Total Projected ADA Revenue Loss
           <InfoTooltip text="Total estimated funding loss from chronic absence across the district. This is the number the Recovery Simulator below helps you reduce. Formula: sum of (absent days × $65/day per-pupil rate) for all chronically absent students." />
         </p>
-        <p className="text-[32px] font-semibold text-gray-900 mt-1">
+        <p className={`${METRIC_VALUE} text-gray-900 mt-1`}>
           <ADALossTooltip
             currentAbsentDays={f.totalAbsentDaysChronic}
             projectedFutureAbsences={projectedFutureAbsences}

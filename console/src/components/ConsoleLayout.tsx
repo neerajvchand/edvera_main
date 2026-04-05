@@ -88,7 +88,7 @@ export function ConsoleLayout() {
                 to={item.to}
                 className={({ isActive }) =>
                   cn(
-                    "flex items-center gap-2 px-4 py-2 text-[13px] transition-colors border-l-2",
+                    "flex items-center gap-2 px-4 py-2 text-[clamp(13px,1vw,15px)] transition-colors border-l-2",
                     isActive
                       ? "border-brand-500 bg-blue-50 text-blue-800 font-semibold"
                       : "border-transparent text-gray-500 font-medium hover:bg-gray-50 hover:text-gray-700"
@@ -122,7 +122,7 @@ export function ConsoleLayout() {
                 to="/settings"
                 className={({ isActive }) =>
                   cn(
-                    "flex items-center gap-2 px-4 py-2 text-[13px] transition-colors border-l-2",
+                    "flex items-center gap-2 px-4 py-2 text-[clamp(13px,1vw,15px)] transition-colors border-l-2",
                     isActive
                       ? "border-brand-500 bg-blue-50 text-blue-800 font-semibold"
                       : "border-transparent text-gray-500 font-medium hover:bg-gray-50 hover:text-gray-700"
@@ -137,7 +137,7 @@ export function ConsoleLayout() {
             {canAccessRoute("/security") && (
               <NavLink
                 to="/security"
-                className="flex items-center gap-2 px-4 py-2 text-[13px] font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors border-l-2 border-transparent"
+                className="flex items-center gap-2 px-4 py-2 text-[clamp(13px,1vw,15px)] font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors border-l-2 border-transparent"
               >
                 <Shield className="h-[15px] w-[15px] shrink-0" />
                 {!collapsed && <span>Security</span>}

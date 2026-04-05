@@ -4,6 +4,7 @@ import { ImportStepUpload } from "@/components/import/ImportStepUpload";
 import { ImportStepMapping } from "@/components/import/ImportStepMapping";
 import { ImportStepValidation } from "@/components/import/ImportStepValidation";
 import { ImportStepComplete } from "@/components/import/ImportStepComplete";
+import { PAGE_TITLE, CASE_DETAIL, CONTENT_PADDING } from "@/lib/designTokens";
 
 /* ================================================================== */
 /* Import Page — Thin orchestration shell                              */
@@ -13,13 +14,11 @@ export function ImportPage() {
   const flow = useImportFlow();
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className={`${CONTENT_PADDING} max-w-5xl`}>
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-[28px] font-semibold text-gray-900">
-          Import Data
-        </h1>
-        <p className="text-sm text-gray-500 mt-0.5">
+        <h1 className={PAGE_TITLE}>Import Data</h1>
+        <p className={`${CASE_DETAIL} mt-0.5`}>
           Upload attendance data from your SIS export
         </p>
       </div>

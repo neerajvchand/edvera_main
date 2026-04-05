@@ -3,6 +3,8 @@
  *
  * Extracted from the Lovable reference design (EdveraDashboard.jsx).
  * All pages should import from here instead of hardcoding values.
+ *
+ * Font sizes use clamp() for responsive scaling on 1440px+ screens.
  */
 
 /* ------------------------------------------------------------------ */
@@ -52,15 +54,15 @@ export const CARD = "bg-white border border-gray-200 rounded-lg";
 
 /** Section label — uppercase micro text above a group */
 export const SECTION_LABEL =
-  "text-[11px] font-bold text-gray-400 uppercase tracking-wider";
+  "text-[clamp(11px,0.85vw,13px)] font-bold text-gray-400 uppercase tracking-wider";
 
 /** Metric card label (inside a card) */
 export const METRIC_LABEL =
-  "text-[11px] font-semibold text-gray-400 uppercase tracking-wider";
+  "text-[clamp(11px,0.85vw,13px)] font-semibold text-gray-400 uppercase tracking-wider";
 
 /** Table / column header */
 export const TABLE_HEADER =
-  "text-[11px] font-semibold text-gray-400 uppercase tracking-wider";
+  "text-[clamp(11px,0.8vw,12px)] font-semibold text-gray-400 uppercase tracking-wider";
 
 /** Primary action button (small, filled navy) */
 export const ACTION_BTN =
@@ -71,7 +73,8 @@ export const SECONDARY_BTN =
   "text-[11px] font-semibold text-gray-600 bg-transparent border border-gray-200 hover:bg-gray-50 rounded-md px-3 py-[7px] transition-colors";
 
 /** Page title — compact, replaces the old text-[28px] */
-export const PAGE_TITLE = "text-[15px] font-semibold text-gray-900";
+export const PAGE_TITLE =
+  "text-[clamp(15px,1.2vw,18px)] font-semibold text-gray-900";
 
 /** Page subtitle / description */
 export const PAGE_SUBTITLE = "text-[13px] text-gray-400";
@@ -79,15 +82,16 @@ export const PAGE_SUBTITLE = "text-[13px] text-gray-400";
 /** Main content area padding */
 export const CONTENT_PADDING = "pt-5 px-6 pb-6";
 
-/** Metric value — large bold number */
+/** Metric value — large bold number (responsive via Tailwind breakpoints) */
 export const METRIC_VALUE =
-  "text-[28px] font-bold tracking-tight leading-none";
+  "text-[28px] lg:text-[32px] xl:text-[36px] font-bold tracking-tight leading-none";
 
 /** Case row — student name */
-export const CASE_NAME = "text-[13px] font-semibold text-gray-900";
+export const CASE_NAME =
+  "text-[clamp(13px,1vw,15px)] font-semibold text-gray-900";
 
 /** Case row — school/detail subtext */
-export const CASE_DETAIL = "text-[12px] text-gray-400";
+export const CASE_DETAIL = "text-[clamp(12px,0.9vw,13px)] text-gray-400";
 
 /* ------------------------------------------------------------------ */
 /* Tier badges                                                         */

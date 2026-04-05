@@ -7,6 +7,7 @@ import { getCountyOffice } from "@/services/schools/getCountyOffice";
 import { getProfile, type ProfileRecord } from "@/services/profiles/getProfile";
 import { updateProfileDisplayName } from "@/services/profiles/updateProfile";
 import type { DistrictRecord, CountyOfficeRecord } from "@/types/organization";
+import { CARD, PAGE_TITLE, CASE_DETAIL, CONTENT_PADDING } from "@/lib/designTokens";
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
@@ -51,10 +52,10 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white">
+    <div className={CARD}>
       <div className="flex items-center gap-2.5 border-b border-gray-100 px-6 py-4">
         <Icon className="h-[18px] w-[18px] text-gray-400" />
-        <h2 className="text-sm font-semibold text-gray-900">{title}</h2>
+        <h2 className="text-[13px] font-semibold text-gray-900">{title}</h2>
       </div>
       <div className="px-6 py-5">{children}</div>
     </div>
@@ -70,8 +71,8 @@ function FieldRow({
 }) {
   return (
     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-0">
-      <span className="w-44 shrink-0 text-sm text-gray-500">{label}</span>
-      <div className="text-sm text-gray-900">{children}</div>
+      <span className="w-44 shrink-0 text-[13px] text-gray-500">{label}</span>
+      <div className="text-[13px] text-gray-900">{children}</div>
     </div>
   );
 }
@@ -149,12 +150,12 @@ export function SettingsPage() {
   if (loading) {
     return (
       <div className="mx-auto max-w-2xl px-6 py-10">
-        <h1 className="text-lg font-semibold text-gray-900">Settings</h1>
+        <h1 className={PAGE_TITLE}>Settings</h1>
         <div className="mt-6 space-y-5">
           {[1, 2, 3].map((i) => (
             <div
               key={i}
-              className="h-40 animate-pulse rounded-xl border border-gray-200 bg-gray-50"
+              className={`h-40 animate-pulse ${CARD} bg-gray-50`}
             />
           ))}
         </div>
@@ -164,8 +165,8 @@ export function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-10">
-      <h1 className="text-lg font-semibold text-gray-900">Settings</h1>
-      <p className="mt-1 text-sm text-gray-500">
+      <h1 className={PAGE_TITLE}>Settings</h1>
+      <p className={`mt-1 ${CASE_DETAIL}`}>
         Manage your account and view district configuration.
       </p>
 
@@ -186,7 +187,7 @@ export function SettingsPage() {
             </FieldRow>
 
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:gap-0">
-              <label className="w-44 shrink-0 pb-1.5 text-sm text-gray-500 sm:pb-0 sm:pt-2">
+              <label className="w-44 shrink-0 pb-1.5 text-[13px] text-gray-500 sm:pb-0 sm:pt-2">
                 Display name
               </label>
               <div className="flex flex-1 items-center gap-2">
@@ -195,12 +196,12 @@ export function SettingsPage() {
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   placeholder="Enter your display name"
-                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-[13px] text-gray-900 placeholder:text-gray-400 transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
                 />
                 <button
                   onClick={handleSave}
                   disabled={!isDirty || saving}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-gray-900 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-500 px-3.5 py-2 text-[13px] font-medium text-white transition hover:bg-brand-600 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {saving ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -248,7 +249,7 @@ export function SettingsPage() {
 
         {/* ---- Notifications ---- */}
         <SectionCard icon={Bell} title="Notifications">
-          <p className="text-sm text-gray-500">
+          <p className={CASE_DETAIL}>
             Notification preferences coming soon.
           </p>
         </SectionCard>
