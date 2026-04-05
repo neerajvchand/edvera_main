@@ -3,9 +3,10 @@
   "configurations": [
     {
       "name": "dev",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 5173
+      "runtimeExecutable": "/Users/xfactor/.nvm/versions/node/v20.20.0/bin/node",
+      "runtimeArgs": ["node_modules/.bin/vite", "--port", "5174"],
+      "port": 5174,
+      "autoPort": true
     }
   ]
 }
